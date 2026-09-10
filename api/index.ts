@@ -12,7 +12,7 @@ import {
   requireAdmin,
   resetPassword,
   rotateRecoveryCode,
-} from "../server/auth";
+} from "../server/auth.js";
 import {
   allAdminData,
   dashboardMetrics,
@@ -27,17 +27,17 @@ import {
   upsertCategory,
   upsertCoupon,
   upsertProduct,
-} from "../server/admin";
-import { createOrder, publicProducts, publicReviews, reactToReview, validateCouponForItems, verifyManualPayment } from "../server/commerce";
+} from "../server/admin.js";
+import { createOrder, publicProducts, publicReviews, reactToReview, validateCouponForItems, verifyManualPayment } from "../server/commerce.js";
 import { db } from "../server/db";
 import { abandonedCarts, businessSettings, categories, cmsDocuments, newsletterSubscribers, orderItems, orders, reviews } from "../server/db/schema";
-import { randomToken, sha256 } from "../server/crypto";
-import { env } from "../server/env";
-import { ApiRequest, ApiResponse, json, parseCookies, setCookie } from "../server/http";
-import { deleteProductImage, uploadProductImage } from "../server/images";
-import { sendPasswordResetEmail } from "../server/notifications";
-import { couponValidationSchema, reviewInputSchema } from "../server/validation";
-import { currentCustomer, loginCustomer, logoutCustomer, registerCustomer, saveAddress, toggleWishlist } from "../server/customers";
+import { randomToken, sha256 } from "../server/crypto.js";
+import { env } from "../server/env.js";
+import { ApiRequest, ApiResponse, json, parseCookies, setCookie } from "../server/http.js";
+import { deleteProductImage, uploadProductImage } from "../server/images.js";
+import { sendPasswordResetEmail } from "../server/notifications.js";
+import { couponValidationSchema, reviewInputSchema } from "../server/validation.js";
+import { currentCustomer, loginCustomer, logoutCustomer, registerCustomer, saveAddress, toggleWishlist } from "../server/customers.js";
 
 function action(req: ApiRequest): string {
   const raw = req.query?.action;
