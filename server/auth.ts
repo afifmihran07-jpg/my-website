@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "./db/index.js";
-import { adminSessions, adminUsers, passwordResetTokens } from "./db/schema";
+import { adminSessions, adminUsers, passwordResetTokens } from "./db/schema.js";
 import { randomToken, recoveryCode, safeEqual, sha256, signValue } from "./crypto";
 import { env } from "./env";
 import { ApiRequest, ApiResponse, clearCookie, parseCookies, setCookie } from "./http";
