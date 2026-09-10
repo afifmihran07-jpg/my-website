@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
-import { db } from "./db";
+import { db } from "./db/index.js";
 import { adminSessions, adminUsers, passwordResetTokens } from "./db/schema";
 import { randomToken, recoveryCode, safeEqual, sha256, signValue } from "./crypto";
 import { env } from "./env";
