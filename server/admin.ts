@@ -1,5 +1,5 @@
 import { count, desc, eq, sql } from "drizzle-orm";
-import { db } from "./db";
+import { db } from "./db/index.js";
 import {
   adminNotifications,
   businessSettings,
@@ -13,8 +13,8 @@ import {
   products,
   productVariants,
   reviews,
-} from "./db/schema";
-import { sendTransactionalSms } from "./notifications";
+} from "./db/schema.js";
+import { sendTransactionalSms } from "./notifications.js";
 
 export async function dashboardMetrics() {
   const [[orderCount], [productCount], [pendingCount], [revenue], lowStock, recentOrders, allOrders, allItems] = await Promise.all([

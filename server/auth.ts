@@ -2,9 +2,9 @@ import bcrypt from "bcryptjs";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "./db/index.js";
 import { adminSessions, adminUsers, passwordResetTokens } from "./db/schema.js";
-import { randomToken, recoveryCode, safeEqual, sha256, signValue } from "./crypto";
-import { env } from "./env";
-import { ApiRequest, ApiResponse, clearCookie, parseCookies, setCookie } from "./http";
+import { randomToken, recoveryCode, safeEqual, sha256, signValue } from "./crypto.js";
+import { env } from "./env.js";
+import { ApiRequest, ApiResponse, clearCookie, parseCookies, setCookie } from "./http.js";
 
 const SESSION_COOKIE = "hss_admin_session";
 const SETUP_COOKIE = "hss_admin_setup";

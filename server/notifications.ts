@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
-import { db } from "./db";
-import { notifications } from "./db/schema";
-import { env } from "./env";
+import { db } from "./db/index.js";
+import { notifications } from "./db/schema.js";
+import { env } from "./env.js";
 
 type SmsResult = {
   status: "sent" | "failed" | "unconfigured";

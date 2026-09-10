@@ -1,9 +1,9 @@
 import bcrypt from "bcryptjs";
 import { and, eq, gt, isNull, or } from "drizzle-orm";
-import { db } from "./db";
-import { customerAddresses, customerSessions, customers, wishlistItems } from "./db/schema";
-import { randomToken, sha256 } from "./crypto";
-import { ApiRequest, ApiResponse, clearCookie, parseCookies, setCookie } from "./http";
+import { db } from "./db/index.js";
+import { customerAddresses, customerSessions, customers, wishlistItems } from "./db/schema.js";
+import { randomToken, sha256 } from "./crypto.js";
+import { ApiRequest, ApiResponse, clearCookie, parseCookies, setCookie } from "./http.js";
 
 const COOKIE = "hss_customer_session";
 

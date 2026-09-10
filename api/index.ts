@@ -29,8 +29,8 @@ import {
   upsertProduct,
 } from "../server/admin.js";
 import { createOrder, publicProducts, publicReviews, reactToReview, validateCouponForItems, verifyManualPayment } from "../server/commerce.js";
-import { db } from "../server/db";
-import { abandonedCarts, businessSettings, categories, cmsDocuments, newsletterSubscribers, orderItems, orders, reviews } from "../server/db/schema";
+import { db } from "../server/db/index.js";
+import { abandonedCarts, businessSettings, categories, cmsDocuments, newsletterSubscribers, orderItems, orders, reviews } from "../server/db/schema.js";
 import { randomToken, sha256 } from "../server/crypto.js";
 import { env } from "../server/env.js";
 import { ApiRequest, ApiResponse, json, parseCookies, setCookie } from "../server/http.js";

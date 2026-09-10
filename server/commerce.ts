@@ -1,5 +1,5 @@
 import { and, asc, count, desc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
-import { db } from "./db";
+import { db } from "./db/index.js";
 import {
   adminNotifications,
   businessSettings,
@@ -14,9 +14,9 @@ import {
   productVariants,
   reviewReactions,
   reviews,
-} from "./db/schema";
-import { sendTransactionalSms } from "./notifications";
-import { orderInputSchema } from "./validation";
+} from "./db/schema.js";
+import { sendTransactionalSms } from "./notifications.js";
+import { orderInputSchema } from "./validation.js";
 
 async function settingNumber(key: string, fallback: number) {
   const [row] = await db.select().from(businessSettings).where(eq(businessSettings.key, key)).limit(1);
