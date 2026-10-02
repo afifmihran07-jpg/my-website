@@ -21,12 +21,9 @@ import {
 } from "@/components/ui/primitives";
 import { formatShortDate } from "@/lib/format";
 import { createOpportunityAction, updateOpportunityAction } from "@/server/services/opportunities-actions";
+import { OPPORTUNITY_STATUS_LABELS, OPPORTUNITY_STATUS_TONES, OPPORTUNITY_TYPE_LABELS } from "@/lib/labels";
 import {
-  OPPORTUNITY_STATUS_LABELS,
-  OPPORTUNITY_STATUS_TONES,
-  OPPORTUNITY_TYPE_LABELS,
-  type SerializedOpportunity,
-} from "@/server/services/opportunities-validation";
+  type SerializedOpportunity,} from "@/server/services/opportunities-validation";;
 
 type Stats = {
   total: number;

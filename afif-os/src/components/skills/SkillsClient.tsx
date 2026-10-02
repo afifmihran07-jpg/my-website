@@ -26,10 +26,9 @@ import {
   deleteEvidenceAction,
   updateSkillAction,
 } from "@/server/services/learning-actions";
+import { EVIDENCE_KIND_LABELS } from "@/lib/labels";
 import {
-  EVIDENCE_KIND_LABELS,
-  type SerializedSkill,
-} from "@/server/services/learning-validation";
+  type SerializedSkill,} from "@/server/services/learning-validation";;
 
 type Option = { id: string; name: string };
 

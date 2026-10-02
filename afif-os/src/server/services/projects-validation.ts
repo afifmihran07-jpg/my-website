@@ -3,8 +3,9 @@ import { z } from "zod";
 
 import { dateKey, iso, optionalText, optionalUrl, requiredText, uuid } from "@/server/services/common-validation";
 import type { ProjectWithStats } from "@/server/services/projects";
+import { PROJECT_STATUS_NAMES } from "@/lib/labels";
 
-export const projectStatus = z.enum(["planning", "active", "paused", "completed", "archived"]);
+export const projectStatus = z.enum(PROJECT_STATUS_NAMES);
 
 export const createProjectSchema = z.object({
   name: requiredText(160, "Project name"),
@@ -53,18 +54,3 @@ export function serializeProject(project: ProjectWithStats) {
 
 export type SerializedProject = ReturnType<typeof serializeProject>;
 
-export const PROJECT_STATUS_LABELS: Record<z.infer<typeof projectStatus>, string> = {
-  planning: "Planning",
-  active: "Active",
-  paused: "Paused",
-  completed: "Completed",
-  archived: "Archived",
-};
-
-export const PROJECT_STATUS_TONES: Record<z.infer<typeof projectStatus>, "neutral" | "primary" | "accent" | "warning" | "danger"> = {
-  planning: "neutral",
-  active: "accent",
-  paused: "warning",
-  completed: "primary",
-  archived: "neutral",
-};

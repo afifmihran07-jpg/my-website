@@ -10,6 +10,7 @@ import {
   uuid,
 } from "@/server/services/common-validation";
 import type { BookWithStats } from "@/server/services/books";
+import { BOOK_STATUS_NAMES } from "@/lib/labels";
 
 /**
  * Book validation + wire format.
@@ -19,7 +20,7 @@ import type { BookWithStats } from "@/server/services/books";
  * schemas and the serialiser for form state.
  */
 
-export const bookStatus = z.enum(["want_to_read", "reading", "paused", "completed"]);
+export const bookStatus = z.enum(BOOK_STATUS_NAMES);
 
 export const createBookSchema = z.object({
   title: requiredText(200, "Title"),
@@ -103,17 +104,3 @@ export function serializeReadingSession(session: {
 }
 
 export type SerializedReadingSession = ReturnType<typeof serializeReadingSession>;
-
-export const BOOK_STATUS_LABELS: Record<z.infer<typeof bookStatus>, string> = {
-  want_to_read: "Want to read",
-  reading: "Reading",
-  paused: "Paused",
-  completed: "Finished",
-};
-
-export const BOOK_STATUS_TONES: Record<z.infer<typeof bookStatus>, "neutral" | "primary" | "accent" | "warning" | "danger"> = {
-  want_to_read: "neutral",
-  reading: "accent",
-  paused: "warning",
-  completed: "primary",
-};

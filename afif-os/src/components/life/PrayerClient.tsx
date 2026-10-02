@@ -16,11 +16,7 @@ import {
   Textarea,
 } from "@/components/ui/primitives";
 import { logPrayerAction } from "@/server/services/life-actions";
-import {
-  PRAYER_LABELS,
-  PRAYER_STATUS_LABELS,
-  PRAYER_STATUS_TONES,
-} from "@/server/services/life-validation";
+import { PRAYER_LABELS, PRAYER_STATUS_LABELS, PRAYER_STATUS_TONES } from "@/lib/labels";
 
 type DayCell = {
   prayer: keyof typeof PRAYER_LABELS;

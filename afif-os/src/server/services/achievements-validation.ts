@@ -3,22 +3,9 @@ import { z } from "zod";
 
 import { dateKey, iso, optionalText, optionalUrl, uuid } from "@/server/services/common-validation";
 import type { AchievementWithLinks, CertificateWithLinks } from "@/server/services/achievements";
+import { ACHIEVEMENT_CATEGORY_NAMES } from "@/lib/labels";
 
-export const achievementCategory = z.enum([
-  "academic_award",
-  "scholarship",
-  "certificate",
-  "competition",
-  "hackathon",
-  "research",
-  "conference",
-  "project",
-  "leadership",
-  "presentation",
-  "publication",
-  "milestone",
-  "other",
-]);
+export const achievementCategory = z.enum(ACHIEVEMENT_CATEGORY_NAMES);
 
 const requiredDate = z
   .string()
@@ -92,18 +79,3 @@ export function serializeCertificate(certificate: CertificateWithLinks) {
 
 export type SerializedCertificate = ReturnType<typeof serializeCertificate>;
 
-export const ACHIEVEMENT_CATEGORY_LABELS: Record<z.infer<typeof achievementCategory>, string> = {
-  academic_award: "Academic award",
-  scholarship: "Scholarship",
-  certificate: "Certificate",
-  competition: "Competition",
-  hackathon: "Hackathon",
-  research: "Research",
-  conference: "Conference",
-  project: "Project",
-  leadership: "Leadership",
-  presentation: "Presentation",
-  publication: "Publication",
-  milestone: "Milestone",
-  other: "Other",
-};

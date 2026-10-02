@@ -3,27 +3,11 @@ import { z } from "zod";
 
 import { dateKey, iso, optionalText, optionalUrl, tagList } from "@/server/services/common-validation";
 import type { OpportunityWithDeadline } from "@/server/services/opportunities";
+import { OPPORTUNITY_STATUS_NAMES, OPPORTUNITY_TYPE_NAMES } from "@/lib/labels";
 
-export const opportunityType = z.enum([
-  "competition",
-  "hackathon",
-  "scholarship",
-  "internship",
-  "research",
-  "conference",
-  "workshop",
-  "certification",
-]);
+export const opportunityType = z.enum(OPPORTUNITY_TYPE_NAMES);
 
-export const opportunityStatus = z.enum([
-  "interested",
-  "applied",
-  "accepted",
-  "rejected",
-  "completed",
-  "not_interested",
-  "archived",
-]);
+export const opportunityStatus = z.enum(OPPORTUNITY_STATUS_NAMES);
 
 export const createOpportunitySchema = z.object({
   name: z.string().trim().min(1, "Give it a name").max(200),
@@ -66,36 +50,3 @@ export function serializeOpportunity(opportunity: OpportunityWithDeadline) {
 
 export type SerializedOpportunity = ReturnType<typeof serializeOpportunity>;
 
-export const OPPORTUNITY_TYPE_LABELS: Record<z.infer<typeof opportunityType>, string> = {
-  competition: "Competitions",
-  hackathon: "Hackathons",
-  scholarship: "Scholarships",
-  internship: "Internships",
-  research: "Research",
-  conference: "Conferences",
-  workshop: "Workshops",
-  certification: "Certifications",
-};
-
-export const OPPORTUNITY_STATUS_LABELS: Record<z.infer<typeof opportunityStatus>, string> = {
-  interested: "Interested",
-  applied: "Applied",
-  accepted: "Accepted",
-  rejected: "Rejected",
-  completed: "Completed",
-  not_interested: "Not interested",
-  archived: "Archived",
-};
-
-export const OPPORTUNITY_STATUS_TONES: Record<
-  z.infer<typeof opportunityStatus>,
-  "neutral" | "primary" | "accent" | "warning" | "danger"
-> = {
-  interested: "neutral",
-  applied: "accent",
-  accepted: "primary",
-  rejected: "danger",
-  completed: "primary",
-  not_interested: "neutral",
-  archived: "neutral",
-};

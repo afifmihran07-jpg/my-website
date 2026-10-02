@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 
 import { dateKey, iso, optionalInt, optionalText, requiredText, tagList } from "@/server/services/common-validation";
+import { PRAYER_NAMES, PRAYER_STATUS_NAMES } from "@/lib/labels";
 import type {
   Activity,
   DiaryEntry,
@@ -12,8 +13,8 @@ import type {
   TimelineEvent,
 } from "@/server/db/schema";
 
-export const prayerName = z.enum(["fajr", "dhuhr", "asr", "maghrib", "isha"]);
-export const prayerStatus = z.enum(["on_time", "late", "missed", "qada"]);
+export const prayerName = z.enum(PRAYER_NAMES);
+export const prayerStatus = z.enum(PRAYER_STATUS_NAMES);
 export const medicationLogStatus = z.enum(["pending", "taken", "skipped", "missed"]);
 
 const dateOnly = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Use the format YYYY-MM-DD");
@@ -59,27 +60,11 @@ export const logPrayerSchema = z.object({
   notes: optionalText(1000, "Notes"),
 });
 
-export const PRAYER_LABELS: Record<z.infer<typeof prayerName>, string> = {
-  fajr: "Fajr",
-  dhuhr: "Dhuhr",
-  asr: "Asr",
-  maghrib: "Maghrib",
-  isha: "Isha",
-};
 
-export const PRAYER_STATUS_LABELS: Record<z.infer<typeof prayerStatus>, string> = {
-  on_time: "On time",
-  late: "Late",
-  missed: "Missed",
-  qada: "Qada",
-};
 
-export const PRAYER_STATUS_TONES: Record<z.infer<typeof prayerStatus>, "neutral" | "primary" | "accent" | "warning" | "danger"> = {
-  on_time: "primary",
-  late: "warning",
-  missed: "danger",
-  qada: "neutral",
-};
+
+
+
 
 /* -------------------------------- medication ------------------------------- */
 
@@ -156,7 +141,7 @@ export function serializeDiary(entry: DiaryEntry) {
 
 export type SerializedDiaryEntry = ReturnType<typeof serializeDiary>;
 
-export const MOOD_LABELS: Record<number, string> = { 1: "Very low", 2: "Low", 3: "Okay", 4: "Good", 5: "Great" };
+
 
 /* ---------------------------------- photos --------------------------------- */
 
@@ -281,13 +266,3 @@ export function serializeReflection(reflection: MonthlyReflection) {
 }
 
 export type SerializedReflection = ReturnType<typeof serializeReflection>;
-
-export const REFLECTION_FIELD_LABELS: Record<string, string> = {
-  learned: "What did I learn?",
-  accomplished: "What did I accomplish?",
-  struggled: "What did I struggle with?",
-  thinkingChanged: "How did my thinking change?",
-  proudOf: "What am I proud of?",
-  stopDoing: "What should I stop doing?",
-  focusNext: "What will I focus on next?",
-};

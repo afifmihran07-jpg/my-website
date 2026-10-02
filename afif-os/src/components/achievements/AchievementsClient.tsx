@@ -25,11 +25,10 @@ import {
   deleteCertificateAction,
   updateAchievementAction,
 } from "@/server/services/achievements-actions";
+import { ACHIEVEMENT_CATEGORY_LABELS } from "@/lib/labels";
 import {
-  ACHIEVEMENT_CATEGORY_LABELS,
   type SerializedAchievement,
-  type SerializedCertificate,
-} from "@/server/services/achievements-validation";
+  type SerializedCertificate,} from "@/server/services/achievements-validation";;
 
 type Stats = {
   total: number;

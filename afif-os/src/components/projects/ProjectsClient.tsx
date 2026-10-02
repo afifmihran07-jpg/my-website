@@ -26,11 +26,9 @@ import {
   setProjectStatusAction,
   updateProjectAction,
 } from "@/server/services/projects-actions";
+import { PROJECT_STATUS_LABELS, PROJECT_STATUS_TONES } from "@/lib/labels";
 import {
-  PROJECT_STATUS_LABELS,
-  PROJECT_STATUS_TONES,
-  type SerializedProject,
-} from "@/server/services/projects-validation";
+  type SerializedProject,} from "@/server/services/projects-validation";;
 
 type Summary = {
   total: number;

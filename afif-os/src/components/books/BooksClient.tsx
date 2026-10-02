@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/primitives";
 import { formatHoursMinutes, formatShortDate } from "@/lib/format";
 import { createBookAction, logReadingAction, updateBookAction } from "@/server/services/books-actions";
-import { BOOK_STATUS_LABELS, BOOK_STATUS_TONES, type SerializedBook, type SerializedReadingSession } from "@/server/services/books-validation";
+import { BOOK_STATUS_LABELS, BOOK_STATUS_TONES } from "@/lib/labels";
+import type { SerializedBook, SerializedReadingSession } from "@/server/services/books-validation";
 
 type Stats = {
   total: number;

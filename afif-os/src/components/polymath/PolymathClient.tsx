@@ -28,15 +28,11 @@ import {
   updateConceptAction,
   updateDomainAction,
 } from "@/server/services/learning-actions";
+import { CONNECTABLE_TYPE_LABELS, CONCEPT_STATUS_LABELS, DOMAIN_CATEGORY_LABELS, RELATION_LABELS } from "@/lib/labels";
 import {
-  CONNECTABLE_TYPE_LABELS,
-  CONCEPT_STATUS_LABELS,
-  DOMAIN_CATEGORY_LABELS,
-  RELATION_LABELS,
   type SerializedConcept,
   type SerializedConnection,
-  type SerializedDomain,
-} from "@/server/services/learning-validation";
+  type SerializedDomain,} from "@/server/services/learning-validation";;
 
 type Stats = {
   domains: number;

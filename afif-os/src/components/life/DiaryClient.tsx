@@ -18,7 +18,8 @@ import {
 } from "@/components/ui/primitives";
 import { formatShortDate } from "@/lib/format";
 import { archiveDiaryAction, saveDiaryAction } from "@/server/services/life-actions";
-import { MOOD_LABELS, type SerializedDiaryEntry } from "@/server/services/life-validation";
+import { MOOD_LABELS } from "@/lib/labels";
+import type { SerializedDiaryEntry } from "@/server/services/life-validation";
 
 export function DiaryClient({
   entries,

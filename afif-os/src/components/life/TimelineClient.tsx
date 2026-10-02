@@ -26,12 +26,11 @@ import {
   deleteTimelineAction,
   saveReflectionAction,
 } from "@/server/services/life-actions";
+import { REFLECTION_FIELD_LABELS } from "@/lib/labels";
 import {
-  REFLECTION_FIELD_LABELS,
   type SerializedMilestone,
   type SerializedReflection,
-  type SerializedTimelineEvent,
-} from "@/server/services/life-validation";
+  type SerializedTimelineEvent,} from "@/server/services/life-validation";
 
 const REFLECTION_FIELDS = Object.keys(REFLECTION_FIELD_LABELS) as (keyof typeof REFLECTION_FIELD_LABELS)[];
 

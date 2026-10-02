@@ -20,11 +20,9 @@ import {
 } from "@/components/ui/primitives";
 import { formatShortDate } from "@/lib/format";
 import { createQuestionAction, updateQuestionAction } from "@/server/services/learning-actions";
+import { QUESTION_STATUS_LABELS, QUESTION_STATUS_TONES } from "@/lib/labels";
 import {
-  QUESTION_STATUS_LABELS,
-  QUESTION_STATUS_TONES,
-  type SerializedQuestion,
-} from "@/server/services/learning-validation";
+  type SerializedQuestion,} from "@/server/services/learning-validation";;
 
 type Option = { id: string; name?: string; title?: string; code?: string };
 

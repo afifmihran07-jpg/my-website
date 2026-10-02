@@ -10,10 +10,11 @@ import type {
   QuestionWithLinks,
   SkillWithEvidence,
 } from "@/server/services/learning";
+import { CONCEPT_STATUS_NAMES, CONNECTABLE_TYPE_NAMES, DOMAIN_CATEGORY_NAMES, EVIDENCE_KIND_NAMES, QUESTION_STATUS_NAMES, RELATION_TYPE_NAMES } from "@/lib/labels";
 
 /* ------------------------------- domains ---------------------------------- */
 
-export const domainCategory = z.enum(["stem", "business", "human_sciences", "creation", "life_nature", "other"]);
+export const domainCategory = z.enum(DOMAIN_CATEGORY_NAMES);
 
 export const createDomainSchema = z.object({
   name: requiredText(120, "Domain name"),
@@ -64,18 +65,9 @@ export type SerializedDomain = {
   children: SerializedDomain[];
 };
 
-export const DOMAIN_CATEGORY_LABELS: Record<z.infer<typeof domainCategory>, string> = {
-  stem: "STEM",
-  business: "Business",
-  human_sciences: "Human sciences",
-  creation: "Creation & design",
-  life_nature: "Life & nature",
-  other: "Other",
-};
-
 /* ------------------------------- concepts --------------------------------- */
 
-export const conceptStatus = z.enum(["new", "learning", "understood", "applied"]);
+export const conceptStatus = z.enum(CONCEPT_STATUS_NAMES);
 
 export const createConceptSchema = z.object({
   title: requiredText(200, "Concept"),
@@ -108,16 +100,9 @@ export function serializeConcept(concept: ConceptWithLinks) {
 
 export type SerializedConcept = ReturnType<typeof serializeConcept>;
 
-export const CONCEPT_STATUS_LABELS: Record<z.infer<typeof conceptStatus>, string> = {
-  new: "New",
-  learning: "Learning",
-  understood: "Understood",
-  applied: "Applied",
-};
-
 /* ------------------------------- questions -------------------------------- */
 
-export const questionStatus = z.enum(["open", "researching", "answered", "dropped"]);
+export const questionStatus = z.enum(QUESTION_STATUS_NAMES);
 
 export const createQuestionSchema = z.object({
   question: requiredText(1000, "Question"),
@@ -156,20 +141,6 @@ export function serializeQuestion(question: QuestionWithLinks) {
 }
 
 export type SerializedQuestion = ReturnType<typeof serializeQuestion>;
-
-export const QUESTION_STATUS_LABELS: Record<z.infer<typeof questionStatus>, string> = {
-  open: "Open",
-  researching: "Researching",
-  answered: "Answered",
-  dropped: "Dropped",
-};
-
-export const QUESTION_STATUS_TONES: Record<z.infer<typeof questionStatus>, "neutral" | "primary" | "accent" | "warning" | "danger"> = {
-  open: "warning",
-  researching: "accent",
-  answered: "primary",
-  dropped: "neutral",
-};
 
 /* --------------------------------- notes ---------------------------------- */
 
@@ -213,18 +184,7 @@ export type SerializedNote = ReturnType<typeof serializeNote>;
 
 /* --------------------------------- skills --------------------------------- */
 
-export const evidenceKind = z.enum([
-  "course",
-  "book",
-  "project",
-  "competition",
-  "achievement",
-  "certificate",
-  "problem_set",
-  "repository",
-  "presentation",
-  "other",
-]);
+export const evidenceKind = z.enum(EVIDENCE_KIND_NAMES);
 
 export const createSkillSchema = z.object({
   name: requiredText(120, "Skill name"),
@@ -272,44 +232,11 @@ export function serializeSkill(skill: SkillWithEvidence) {
 
 export type SerializedSkill = ReturnType<typeof serializeSkill>;
 
-export const EVIDENCE_KIND_LABELS: Record<z.infer<typeof evidenceKind>, string> = {
-  course: "Course",
-  book: "Book",
-  project: "Project",
-  competition: "Competition",
-  achievement: "Achievement",
-  certificate: "Certificate",
-  problem_set: "Problem set",
-  repository: "Repository",
-  presentation: "Presentation",
-  other: "Other",
-};
-
 /* ------------------------------ connections -------------------------------- */
 
-export const connectableType = z.enum([
-  "course",
-  "book",
-  "project",
-  "goal",
-  "note",
-  "concept",
-  "question",
-  "skill",
-  "domain",
-  "opportunity",
-  "achievement",
-]);
+export const connectableType = z.enum(CONNECTABLE_TYPE_NAMES);
 
-export const relationType = z.enum([
-  "relates_to",
-  "depends_on",
-  "supports",
-  "contradicts",
-  "example_of",
-  "led_to",
-  "part_of",
-]);
+export const relationType = z.enum(RELATION_TYPE_NAMES);
 
 export const createConnectionSchema = z
   .object({
@@ -341,26 +268,3 @@ export function serializeConnection(connection: ConnectionWithLabels) {
 
 export type SerializedConnection = ReturnType<typeof serializeConnection>;
 
-export const RELATION_LABELS: Record<z.infer<typeof relationType>, string> = {
-  relates_to: "relates to",
-  depends_on: "depends on",
-  supports: "supports",
-  contradicts: "contradicts",
-  example_of: "is an example of",
-  led_to: "led to",
-  part_of: "is part of",
-};
-
-export const CONNECTABLE_TYPE_LABELS: Record<z.infer<typeof connectableType>, string> = {
-  course: "Course",
-  book: "Book",
-  project: "Project",
-  goal: "Goal",
-  note: "Note",
-  concept: "Concept",
-  question: "Question",
-  skill: "Skill",
-  domain: "Domain",
-  opportunity: "Opportunity",
-  achievement: "Achievement",
-};
