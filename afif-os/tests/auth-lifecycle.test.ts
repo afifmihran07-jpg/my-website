@@ -178,10 +178,16 @@ describe("session cookie reaches the server in every deployment context", () => 
             secFetchSite,
             secFetchDest,
           });
-          // Over plain http a Secure cookie would be discarded by the browser.
-          if (forwardedProto === "http") expect(secure).toBe(false);
-          // SameSite=None without Secure is rejected outright by browsers.
+          // SameSite=None without Secure is rejected outright by browsers, so
+          // this pairing must never be emitted.
           if (sameSite === "none") expect(secure).toBe(true);
+          // Over plain http a Secure cookie would be discarded, so do not force
+          // Secure on — unless the cookie has to be None, which only happens in
+          // a cross-site frame where Secure is mandatory anyway. Note that
+          // x-forwarded-proto describes the proxy-to-app hop, not the
+          // browser-to-proxy hop, so "http" here does not prove the browser is
+          // on http.
+          if (forwardedProto === "http" && sameSite !== "none") expect(secure).toBe(false);
         }
       }
     }

@@ -162,3 +162,86 @@ describe("resolveCookieSecure (back-compat wrapper)", () => {
     );
   });
 });
+
+/**
+ * Regression test for the login redirect loop behind a hosted preview.
+ *
+ * Reproduced from a real request captured in the server logs:
+ *   GET / | x-forwarded-host == host | x-forwarded-proto=http | Sec-Fetch-* absent
+ *
+ * The preview terminates TLS itself and forwards plain http to the app while
+ * stripping every Sec-Fetch-* header. So `secure` derived to false and the
+ * auto-detection of an embedded context could not fire. With
+ * COOKIE_SAMESITE="none" set, the old guard still collapsed the attribute to
+ * Lax, because it refused SameSite=None without Secure.
+ *
+ * A Lax cookie is stored by the browser but never sent inside a cross-site
+ * iframe, so /dashboard saw no session cookie and bounced back to /login —
+ * which looks exactly like a login that succeeds and immediately fails.
+ */
+describe("hosted preview: x-forwarded-proto=http with Sec-Fetch-* stripped", () => {
+  const realPreview = {
+    forwardedProto: "http",
+    secFetchSite: null,
+    secFetchDest: null,
+    secFetchMode: null,
+    nodeEnv: "development",
+  };
+
+  it("keeps SameSite=None when it was explicitly requested, promoting Secure", () => {
+    const attrs = resolveCookieAttributes({ ...realPreview, sameSiteOverride: "none" });
+    expect(attrs).toEqual({ secure: true, sameSite: "none" });
+  });
+
+  it("still honours an explicit Secure=false, falling back to Lax", () => {
+    // An operator who turns Secure off cannot get None — browsers would drop
+    // it outright — so Lax is the only survivable answer.
+    const attrs = resolveCookieAttributes({
+      ...realPreview,
+      sameSiteOverride: "none",
+      secureOverride: "false",
+    });
+    expect(attrs).toEqual({ secure: false, sameSite: "lax" });
+  });
+
+  it("leaves the auto-detected path on Lax over plain http", () => {
+    // No override: nothing says this is a cross-site frame, so do not upgrade.
+    const attrs = resolveCookieAttributes({ ...realPreview, sameSiteOverride: null });
+    expect(attrs).toEqual({ secure: false, sameSite: "lax" });
+  });
+});
+
+/**
+ * The exact headers captured from the real browser hitting the hosted preview,
+ * with no environment override set at all. This is the case that produced the
+ * redirect loop: x-forwarded-proto says http because the proxy terminates TLS
+ * before forwarding, while Sec-Fetch-* correctly report a cross-site iframe.
+ *
+ * Before the fix this resolved to SameSite=Lax, which the browser stores but
+ * never sends inside a cross-site iframe.
+ */
+describe("captured preview navigation headers, no env override", () => {
+  const captured = {
+    forwardedProto: "http",
+    secFetchSite: "cross-site",
+    secFetchDest: "iframe",
+    secureOverride: null,
+    sameSiteOverride: null,
+    nodeEnv: "development",
+  };
+
+  it("resolves to SameSite=None with Secure, not Lax", () => {
+    expect(resolveCookieAttributes(captured)).toEqual({ secure: true, sameSite: "none" });
+  });
+
+  it("stays on Lax when there is no evidence of an embedded context", () => {
+    // Same proxy-reported http, but a plain top-level navigation: Lax is right
+    // and Secure must not be forced on.
+    const attrs = resolveCookieAttributes({
+      ...captured,
+      secFetchSite: "none",
+      secFetchDest: "document",
+    });
+    expect(attrs).toEqual({ secure: false, sameSite: "lax" });
+  });
+});

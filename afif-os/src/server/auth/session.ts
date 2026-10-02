@@ -85,10 +85,28 @@ export function resolveCookieAttributes(input: {
   else if (input.sameSiteOverride === "lax") sameSite = "lax";
   else sameSite = embedded ? "none" : "lax";
 
-  // Browsers reject SameSite=None without Secure — it would be dropped outright,
-  // which is worse than Lax. Never emit that combination.
+  // Browsers only deliver SameSite=None together with Secure, so once we have
+  // decided the cookie must be None, Secure has to come with it. Promote it
+  // rather than collapsing to Lax — unless Secure was explicitly forced off.
+  //
+  // Collapsing to Lax was the actual cause of the login redirect loop in the
+  // hosted preview. Captured from the real browser, the login request arrives
+  // as: x-forwarded-proto=http, sec-fetch-site=cross-site,
+  // sec-fetch-dest=iframe. The proxy terminates TLS itself and forwards plain
+  // http to the app, so `secure` derived to false from x-forwarded-proto even
+  // though the browser is on https. That made the old guard below fire and
+  // rewrite None to Lax. A Lax cookie IS stored by the browser but is never
+  // sent inside a cross-site iframe, so /dashboard saw no session cookie and
+  // bounced back to /login — a login that succeeds and immediately fails.
+  //
+  // Note x-forwarded-proto describes the proxy-to-app hop, not the
+  // browser-to-proxy hop, so it can understate the scheme the browser sees.
+  if (sameSite === "none" && !secure && input.secureOverride !== "false") secure = true;
+
+  // Reachable only when Secure was explicitly forced off: browsers would drop
+  // None outright, which is worse than Lax, so Lax is the survivable answer.
   if (sameSite === "none" && !secure) {
-    return https ? { secure: true, sameSite: "none" } : { secure, sameSite: "lax" };
+    return { secure: false, sameSite: "lax" };
   }
 
   return { secure, sameSite };
