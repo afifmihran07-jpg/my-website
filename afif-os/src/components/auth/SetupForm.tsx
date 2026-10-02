@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Check, Eye, EyeOff, X } from "lucide-react";
 import { setupAccountAction } from "@/server/auth/actions";
 import { Alert, Button, Field, Input } from "@/components/ui/primitives";
@@ -15,7 +14,6 @@ const RULES = [
 ];
 
 export function SetupForm() {
-  const router = useRouter();
   const [form, setForm] = React.useState({
     fullName: "",
     username: "",
@@ -48,11 +46,10 @@ export function SetupForm() {
       const result = await setupAccountAction(form);
       if (result.ok) {
         window.clearTimeout(watchdog);
-        // `replace` alone navigates and fetches fresh server data. The
-        // `router.refresh()` that used to follow it re-fetched /setup, which the
-        // guard redirects once the session cookie exists — two concurrent
-        // navigations racing to the same destination.
-        router.replace(result.data.redirectTo);
+        // Full-document navigation for the same reason as the login form: it
+        // unloads this page, so the button cannot survive an unresolved
+        // client-side navigation.
+        window.location.assign(result.data.redirectTo);
         return;
       }
       window.clearTimeout(watchdog);

@@ -13,17 +13,22 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
  * and labelled "Signing in…" forever with no way to retry.
  */
 
-const replace = vi.fn();
-const refresh = vi.fn();
+const assign = vi.fn();
 const loginAction = vi.fn();
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace, refresh, push: vi.fn(), prefetch: vi.fn() }),
-}));
 
 vi.mock("@/server/auth/actions", () => ({
   loginAction: (...args: unknown[]) => loginAction(...args),
 }));
+
+// The form navigates with window.location.assign so the document unloads.
+// jsdom does not implement navigation, so stand in for it.
+beforeEach(() => {
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    writable: true,
+    value: { ...window.location, assign, href: "http://localhost/login" },
+  });
+});
 
 // Imported after the mocks are registered.
 const { LoginForm } = await import("@/components/auth/LoginForm");
@@ -45,8 +50,7 @@ function submitButton(container: HTMLElement) {
 describe("LoginForm never stays pending after a submit settles", () => {
   beforeEach(() => {
     loginAction.mockReset();
-    replace.mockReset();
-    refresh.mockReset();
+    assign.mockReset();
   });
 
   afterEach(cleanup);
@@ -90,24 +94,24 @@ describe("LoginForm never stays pending after a submit settles", () => {
     submitForm(container);
 
     await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith("/dashboard");
+      expect(assign).toHaveBeenCalledWith("/dashboard");
     });
   });
 
-  it("does not fire router.refresh() alongside the navigation", async () => {
-    // This is the actual root cause of the stuck "Signing in…" state.
-    // `refresh()` re-fetched the current route (/login), which the guard
-    // redirects to /dashboard once the session cookie exists — a second
-    // navigation racing the `replace()` to the same destination.
+  it("navigates with a full document load, not a client-side route change", async () => {
+    // A client-side navigation leaves this form mounted until the router
+    // commits the new tree, so an unresolved navigation strands it on
+    // "Signing in…". window.location.assign unloads the document instead,
+    // which is why the post-login hop uses it.
     loginAction.mockResolvedValue({ ok: true, data: { redirectTo: "/dashboard" } });
     const { container } = render(<LoginForm needsSetup={false} />);
 
     submitForm(container);
 
     await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith("/dashboard");
+      expect(assign).toHaveBeenCalledTimes(1);
+      expect(assign).toHaveBeenCalledWith("/dashboard");
     });
-    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("prefers a safe `next` path and ignores one that leaves the site", async () => {
@@ -117,7 +121,7 @@ describe("LoginForm never stays pending after a submit settles", () => {
     submitForm(container);
 
     await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith("/dashboard");
+      expect(assign).toHaveBeenCalledWith("/dashboard");
     });
   });
 

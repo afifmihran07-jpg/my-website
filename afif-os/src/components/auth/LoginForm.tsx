@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import { loginAction } from "@/server/auth/actions";
 import { Alert, Button, Field, Input } from "@/components/ui/primitives";
@@ -22,7 +21,6 @@ export function LoginForm({
   next?: string;
   needsSetup: boolean;
 }) {
-  const router = useRouter();
   const [identifier, setIdentifier] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [remember, setRemember] = React.useState(true);
@@ -53,14 +51,17 @@ export function LoginForm({
       if (result.ok) {
         const target = next && next.startsWith("/") ? next : result.data.redirectTo;
         window.clearTimeout(watchdog);
-        // `replace` alone performs the navigation and fetches fresh server data
-        // for the destination. The `router.refresh()` that used to sit here
-        // re-fetched the *current* route (/login), which — now that the
-        // session cookie is set — the guard redirects to /dashboard. Two
-        // concurrent navigations to the same destination raced and the router
-        // could leave the pending navigation unresolved, which is what kept this
-        // form on screen reading "Signing in…".
-        router.replace(target);
+        // Full-document navigation, not a client-side route change.
+        //
+        // This deliberately bypasses the App Router for the post-login hop.
+        // `router.replace()` leaves the current component mounted until the
+        // router commits the new tree, so any unresolved navigation keeps this
+        // form on screen reading "Signing in…" — which is exactly the
+        // failure being fixed here (a `router.refresh()` used to race it to the
+        // same destination). Assigning to location unloads the document, so the
+        // button cannot survive the transition, and the server renders
+        // /dashboard fresh with the new session cookie.
+        window.location.assign(target);
         return;
       }
       window.clearTimeout(watchdog);
