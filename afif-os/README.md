@@ -186,7 +186,7 @@ tokens excluded), plus CSV for the time-series tables. You are never locked in.
 npm test
 ```
 
-203 tests across 16 files, all running against a real PostgreSQL database:
+214 tests across 18 files, all running against a real PostgreSQL database:
 
 - **auth** — hashing, policy, session resolution, expiry, revocation, lockout, no hash leak
 - **study** — start, duplicate prevention, refresh persistence, pause, resume, stop,
@@ -213,6 +213,10 @@ npm test
 - **permissions** — sensitive defaults, explicit opt-in, blocked-module behaviour
 - **tick route** — the cron endpoint refuses to run unconfigured, rejects bad tokens, and
   delivers a due reminder when called correctly
+- **login-pending** — renders the login form under jsdom and asserts a rejected action
+  can never leave the button stuck on "Signing in…", and that success navigates
+- **session-cookie** — the `Secure` attribute follows the connection actually in use, not
+  the build mode, so a browser on plain http is not handed a cookie it must discard
 
 Verified separately over HTTP against a production build: anonymous access redirects from
 every protected route; a wrong password returns a generic error with no cookie; correct
