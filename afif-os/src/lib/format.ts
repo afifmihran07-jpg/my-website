@@ -97,3 +97,21 @@ export function initials(name: string): string {
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
 }
+
+/**
+ * Safe percentage for bar and chart geometry.
+ *
+ * Every bar in the UI divides one measured quantity by another, and the
+ * denominator can legitimately be zero — a course with no graded work, a day
+ * with no study, a window with no sessions. Dividing anyway produces Infinity
+ * or NaN, which reaches the DOM as `width:NaN%` and renders nothing at all.
+ * This returns a finite number in [0, 100], rounded so the markup does not
+ * carry fourteen decimal places.
+ */
+export function barPercent(value: number, max: number, decimals = 1): number {
+  if (!Number.isFinite(value) || !Number.isFinite(max) || max <= 0) return 0;
+  const pct = (value / max) * 100;
+  if (!Number.isFinite(pct)) return 0;
+  const factor = 10 ** decimals;
+  return Math.min(100, Math.max(0, Math.round(pct * factor) / factor));
+}

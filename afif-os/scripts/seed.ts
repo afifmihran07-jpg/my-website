@@ -15,6 +15,18 @@ import * as schema from "../src/server/db/schema";
 import { createAccount, hasAnyAccount } from "../src/server/services/account";
 import { createTask } from "../src/server/services/tasks";
 import { createReminder } from "../src/server/services/reminders";
+import {
+  addPhoto,
+  createActivity,
+  createMedication,
+  createMilestone,
+  createTimelineEvent,
+  logMedicationDose,
+  saveDiaryEntry,
+  saveReflection,
+} from "../src/server/services/life";
+import { createResource } from "../src/server/services/academic";
+import { logReading } from "../src/server/services/books";
 import { computeCourseProgress, defaultBands, gradePointForPercent } from "../src/server/services/dashboard";
 
 const SEED_EMAIL = "afif@example.com";
@@ -33,6 +45,19 @@ async function main() {
   if (!url) throw new Error("DATABASE_URL is not set");
   const client = postgres(url, { max: 1, prepare: false });
   const db = drizzle(client, { schema });
+
+  /**
+   * True when a row already exists in `table` matching `conditions`.
+   *
+   * `onConflictDoNothing()` is useless for most of this script: only a handful
+   * of tables carry a unique constraint, so the insert always succeeds and
+   * every re-run appends a second copy. Checking first is what makes the seed
+   * idempotent.
+   */
+  async function exists(table: any, conditions: any): Promise<boolean> {
+    const rows = await db.select({ id: table.id }).from(table).where(conditions).limit(1);
+    return rows.length > 0;
+  }
   const timeZone = process.env.DEFAULT_TIMEZONE ?? "Asia/Dhaka";
 
   // process.env is what the services read for env(); keep them consistent.
@@ -60,20 +85,27 @@ async function main() {
   const userId = user.id;
 
   /* ---------------- semester + courses ---------------- */
-  const [semester] = await db
-    .insert(schema.semesters)
-    .values({
-      userId,
-      name: "Semester 1",
-      status: "active",
-      startDate: dayKey(-90),
-      endDate: dayKey(60),
-    })
-    .onConflictDoNothing()
-    .returning();
-  const semesterId =
-    semester?.id ??
-    (await db.select().from(schema.semesters).where(eq(schema.semesters.userId, userId)).limit(1))[0]!.id;
+  // Look up before inserting: `semesters` has no unique constraint on the name,
+  // so `onConflictDoNothing()` never fires and every run would add another
+  // "Semester 1". Courses are protected by a unique index; semesters are not.
+  const [existingSemester] = await db
+    .select()
+    .from(schema.semesters)
+    .where(and(eq(schema.semesters.userId, userId), eq(schema.semesters.name, "Semester 1")))
+    .limit(1);
+  const [semester] = existingSemester
+    ? [existingSemester]
+    : await db
+        .insert(schema.semesters)
+        .values({
+          userId,
+          name: "Semester 1",
+          status: "active",
+          startDate: dayKey(-90),
+          endDate: dayKey(60),
+        })
+        .returning();
+  const semesterId = semester!.id;
 
   const courseSpecs = [
     { code: "CSE111", name: "Programming Language I", credits: "3", faculty: "SCSE", section: "7", color: "#6366f1", classes: [[1, "08:00:00", "09:30:00", "UB50301"], [3, "08:00:00", "09:30:00", "UB50301"]] },
@@ -110,10 +142,21 @@ async function main() {
     courseIds[spec.code] = course.id;
 
     for (const [dayOfWeek, start, end, room] of spec.classes) {
+      if (
+        await exists(
+          schema.classSchedules,
+          and(
+            eq(schema.classSchedules.courseId, course.id),
+            eq(schema.classSchedules.dayOfWeek, dayOfWeek),
+            eq(schema.classSchedules.startTime, start),
+          ),
+        )
+      ) {
+        continue;
+      }
       await db
         .insert(schema.classSchedules)
-        .values({ userId, courseId: course.id, dayOfWeek, startTime: start, endTime: end, room })
-        .onConflictDoNothing();
+        .values({ userId, courseId: course.id, dayOfWeek, startTime: start, endTime: end, room });
     }
   }
   console.log(`✓ ${Object.keys(courseIds).length} courses with weekly class schedules`);
@@ -184,31 +227,52 @@ async function main() {
   }
 
   /* ---------------- goals → project → tasks ---------------- */
-  const [goal] = await db
-    .insert(schema.goals)
-    .values({ userId, title: "Become strong at full-stack development", status: "active", targetDate: dayKey(180) })
-    .returning();
-  const [project] = await db
-    .insert(schema.projects)
-    .values({
-      userId,
-      goalId: goal!.id,
-      name: "Personal OS",
-      description: "A single system for academic, learning and life tracking.",
-      status: "active",
-      startDate: dayKey(-14),
-      targetDate: dayKey(60),
-    })
-    .returning();
-  console.log(`✓ goal → project "${project!.name}"`);
+  const GOAL_TITLE = "Become strong at full-stack development";
+  const [existingGoal] = await db
+    .select()
+    .from(schema.goals)
+    .where(and(eq(schema.goals.userId, userId), eq(schema.goals.title, GOAL_TITLE)))
+    .limit(1);
+  const goal =
+    existingGoal ??
+    (
+      await db
+        .insert(schema.goals)
+        .values({ userId, title: GOAL_TITLE, status: "active", targetDate: dayKey(180) })
+        .returning()
+    )[0]!;
+
+  const [existingProject] = await db
+    .select()
+    .from(schema.projects)
+    .where(and(eq(schema.projects.userId, userId), eq(schema.projects.name, "Personal OS")))
+    .limit(1);
+  const project =
+    existingProject ??
+    (
+      await db
+        .insert(schema.projects)
+        .values({
+          userId,
+          goalId: goal.id,
+          name: "Personal OS",
+          description: "A single system for academic, learning and life tracking.",
+          status: "active",
+          startDate: dayKey(-14),
+          targetDate: dayKey(60),
+        })
+        .returning()
+    )[0]!;
+  console.log(`✓ goal → project "${project.name}"`);
 
   const projectTasks = ["Build authentication", "Build dashboard", "Build study timer", "Build PostgreSQL schema"];
   for (const title of projectTasks) {
+    if (await exists(schema.tasks, and(eq(schema.tasks.userId, userId), eq(schema.tasks.title, title)))) continue;
     await createTask({
       userId,
       title,
-      projectId: project!.id,
-      goalId: goal!.id,
+      projectId: project.id,
+      goalId: goal.id,
       priority: "high",
       status: title === "Build PostgreSQL schema" ? "completed" : "todo",
       dueDate: dayKey(3),
@@ -225,6 +289,7 @@ async function main() {
     ["Prepare CSE230 lab report", "coursework", 2],
   ];
   for (const [title, category, offset] of studyTasks) {
+    if (await exists(schema.tasks, and(eq(schema.tasks.userId, userId), eq(schema.tasks.title, title)))) continue;
     await createTask({
       userId,
       title,
@@ -235,6 +300,7 @@ async function main() {
       courseId: title.includes("CSE111") ? courseIds.CSE111 : title.includes("MAT110") ? courseIds.MAT110 : null,
     });
   }
+  if (!(await exists(schema.tasks, and(eq(schema.tasks.userId, userId), eq(schema.tasks.title, "Weekly review and planning"))))) {
   await createTask({
     userId,
     title: "Weekly review and planning",
@@ -244,6 +310,7 @@ async function main() {
     recurrence: "weekly",
     estimatedMinutes: 45,
   });
+  }
   console.log("✓ tasks across projects, courses and routines");
 
   /* ---------------- books ---------------- */
@@ -289,14 +356,30 @@ async function main() {
 
   let domainCount = 0;
   for (const [parentName, category, stage, children] of domainSpecs) {
-    const [parent] = await db
-      .insert(schema.polymathDomains)
-      .values({ userId, name: parentName, category, stage })
-      .onConflictDoNothing()
-      .returning();
-    if (!parent) continue;
+    const [existingParent] = await db
+      .select()
+      .from(schema.polymathDomains)
+      .where(and(eq(schema.polymathDomains.userId, userId), eq(schema.polymathDomains.name, parentName)))
+      .limit(1);
+    const parent =
+      existingParent ??
+      (
+        await db
+          .insert(schema.polymathDomains)
+          .values({ userId, name: parentName, category, stage })
+          .returning()
+      )[0]!;
     domainCount += 1;
     for (const child of children) {
+      if (
+        await exists(
+          schema.polymathDomains,
+          and(eq(schema.polymathDomains.userId, userId), eq(schema.polymathDomains.name, child)),
+        )
+      ) {
+        domainCount += 1;
+        continue;
+      }
       await db.insert(schema.polymathDomains).values({ userId, parentId: parent.id, name: child, category, stage });
       domainCount += 1;
     }
@@ -322,14 +405,26 @@ async function main() {
   ];
 
   for (const [name, category, stage, evidence] of skillSpecs) {
-    const [skill] = await db
-      .insert(schema.skills)
-      .values({ userId, name, category, stage })
-      .returning();
+    const [existingSkill] = await db
+      .select()
+      .from(schema.skills)
+      .where(and(eq(schema.skills.userId, userId), eq(schema.skills.name, name)))
+      .limit(1);
+    const skill =
+      existingSkill ??
+      (await db.insert(schema.skills).values({ userId, name, category, stage }).returning())[0]!;
     for (const [title, kind, url, metric] of evidence) {
+      if (
+        await exists(
+          schema.skillEvidence,
+          and(eq(schema.skillEvidence.skillId, skill.id), eq(schema.skillEvidence.title, title)),
+        )
+      ) {
+        continue;
+      }
       await db.insert(schema.skillEvidence).values({
         userId,
-        skillId: skill!.id,
+        skillId: skill.id,
         kind,
         title,
         url,
@@ -442,6 +537,12 @@ async function main() {
   console.log(`✓ ${achievementSpecs.length} achievements`);
 
   /* ---------------- notes, questions, concepts ---------------- */
+  if (
+    !(await exists(
+      schema.notes,
+      and(eq(schema.notes.userId, userId), eq(schema.notes.title, "Recursion — base case first")),
+    ))
+  )
   await db
     .insert(schema.notes)
     .values({
@@ -450,8 +551,13 @@ async function main() {
       body: "Always write the base case before the recursive step. Trace n=0, n=1 by hand before running.",
       courseId: courseIds.CSE111,
       tags: ["cse111", "recursion"],
-    })
-    .onConflictDoNothing();
+    });
+  if (
+    !(await exists(
+      schema.questions,
+      and(eq(schema.questions.userId, userId), eq(schema.questions.question, "When is memoisation worse than plain recursion?")),
+    ))
+  )
   await db
     .insert(schema.questions)
     .values({
@@ -459,16 +565,21 @@ async function main() {
       question: "When is memoisation worse than plain recursion?",
       courseId: courseIds.CSE111,
       status: "open",
-    })
-    .onConflictDoNothing();
+    });
+  if (
+    !(await exists(
+      schema.concepts,
+      and(eq(schema.concepts.userId, userId), eq(schema.concepts.title, "Amortised analysis")),
+    ))
+  )
   await db
     .insert(schema.concepts)
-    .values({ userId, title: "Amortised analysis", summary: "Average cost per operation over a worst-case sequence.", status: "learning" })
-    .onConflictDoNothing();
+    .values({ userId, title: "Amortised analysis", summary: "Average cost per operation over a worst-case sequence.", status: "learning" });
   console.log("✓ notes, questions and concepts");
 
   /* ---------------- reminders + prayer ---------------- */
   const remindAt = new Date(Date.now() + 2 * 3600 * 1000);
+  if (!(await exists(schema.reminders, and(eq(schema.reminders.userId, userId), eq(schema.reminders.title, "Start evening study block"))))) {
   await createReminder({
     userId,
     title: "Start evening study block",
@@ -477,6 +588,8 @@ async function main() {
     timeZone,
     priority: "high",
   });
+  }
+  if (!(await exists(schema.reminders, and(eq(schema.reminders.userId, userId), eq(schema.reminders.title, "Take evening medication"))))) {
   await createReminder({
     userId,
     title: "Take evening medication",
@@ -485,6 +598,7 @@ async function main() {
     timeZone,
     priority: "urgent",
   });
+  }
 
   const today = dayKey(0);
   for (const prayer of ["fajr", "dhuhr", "asr"] as const) {
@@ -494,6 +608,174 @@ async function main() {
       .onConflictDoNothing();
   }
   console.log("✓ reminders and prayer log");
+
+  /* ---------------- life: activities, medication, diary, photos, timeline ---------------- */
+  const activityCount = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.activities)
+    .where(eq(schema.activities.userId, userId));
+  if (Number(activityCount[0]?.count ?? 0) === 0) {
+    // Exercise, study and rest, with real start/end times so the derived
+    // duration matches what the UI will show.
+    const specs: Array<[string, "exercise" | "study" | "rest" | "social" | "work", number, number]> = [
+      ["Morning run at the park", "exercise", -1, 45],
+      ["Evening gym session", "exercise", -2, 60],
+      ["CSE111 revision block", "study", -1, 90],
+      ["Deep work on Personal OS", "work", -3, 120],
+      ["Friday dinner with family", "social", -4, 150],
+      ["Rest and recovery", "rest", -2, 480],
+    ];
+    for (const [title, kind, offset, minutes] of specs) {
+      const startedAt = new Date(Date.now() + offset * 86_400_000);
+      startedAt.setUTCHours(7, 0, 0, 0);
+      await createActivity({
+        userId,
+        title,
+        kind,
+        startedAt,
+        endedAt: new Date(startedAt.getTime() + minutes * 60_000),
+        notes: "Seeded through the same service the app uses.",
+      });
+    }
+    console.log(`✓ ${specs.length} activities`);
+  }
+
+  const medicationCount = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.medications)
+    .where(eq(schema.medications.userId, userId));
+  if (Number(medicationCount[0]?.count ?? 0) === 0) {
+    const vitamin = await createMedication({
+      userId,
+      name: "Vitamin D3",
+      dose: "1000 IU",
+      times: ["08:00"],
+      notes: "As prescribed — Afif OS only tracks, it never recommends a change.",
+    });
+    await createMedication({ userId, name: "Iron supplement", dose: "65 mg", times: ["21:00"], active: false });
+
+    // Yesterday taken, the day before missed — enough to make the adherence
+    // panel show a real ratio instead of an empty state.
+    await logMedicationDose({
+      userId,
+      medicationId: vitamin.id,
+      scheduledAt: new Date(`${dayKey(-1)}T08:00:00`),
+      status: "taken",
+    });
+    await logMedicationDose({
+      userId,
+      medicationId: vitamin.id,
+      scheduledAt: new Date(`${dayKey(-2)}T08:00:00`),
+      status: "missed",
+    });
+    console.log("✓ medications and dose log");
+  }
+
+  const diaryCount = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.diaryEntries)
+    .where(eq(schema.diaryEntries.userId, userId));
+  if (Number(diaryCount[0]?.count ?? 0) === 0) {
+    // aiAllowed stays false: diary is private by default and the seed does not
+    // silently open it to the advisor.
+    await saveDiaryEntry({ userId, day: dayKey(0), body: "Shipped the Life modules today. Prayer streak held.", mood: 4 });
+    await saveDiaryEntry({ userId, day: dayKey(-1), body: "Long study block, but started too late. Earlier tomorrow.", mood: 3 });
+    console.log("✓ diary entries (kept private from the advisor)");
+  }
+
+  const photoCount = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.photos)
+    .where(eq(schema.photos.userId, userId));
+  if (Number(photoCount[0]?.count ?? 0) === 0) {
+    await addPhoto({
+      userId,
+      path: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200",
+      caption: "Sunrise over the hills",
+      tags: ["travel", "nature"],
+      location: "Sylhet",
+      takenAt: new Date(Date.now() - 30 * 86_400_000),
+    });
+    console.log("✓ photo metadata (URL reference, no bytes stored)");
+  }
+
+  const timelineCount = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.timelineEvents)
+    .where(eq(schema.timelineEvents.userId, userId));
+  if (Number(timelineCount[0]?.count ?? 0) === 0) {
+    await createTimelineEvent({ userId, title: "Started university", occurredOn: dayKey(-720), description: "First day of the CSE programme." });
+    await createTimelineEvent({ userId, title: "First hackathon", occurredOn: dayKey(-210), description: "Built a scheduling tool overnight." });
+    await createTimelineEvent({ userId, title: "Started Afif OS", occurredOn: dayKey(-60), description: "Began building this system." });
+    await createMilestone({ userId, title: "Read 50 books", achievedOn: dayKey(-45), description: "Tracked across two years." });
+    console.log("✓ timeline events and milestones");
+  }
+
+  const reflectionCount = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.monthlyReflections)
+    .where(eq(schema.monthlyReflections.userId, userId));
+  if (Number(reflectionCount[0]?.count ?? 0) === 0) {
+    const periodStart = new Date().toISOString().slice(0, 7) + "-01";
+    await saveReflection({
+      userId,
+      periodStart,
+      learned: "That a system you trust beats a system that impresses you.",
+      accomplished: "Shipped the analytics and life modules.",
+      struggled: "Starting study blocks in the morning.",
+      focusNext: "Protect the first two hours of the day.",
+    });
+    console.log("✓ monthly reflection");
+  }
+
+  /* ---------------- course resources + reading sessions ---------------- */
+  const resourceCount = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.courseResources)
+    .where(eq(schema.courseResources.userId, userId));
+  if (Number(resourceCount[0]?.count ?? 0) === 0 && courseIds.CSE111 && courseIds.MAT110) {
+    await createResource({
+      userId,
+      courseId: courseIds.CSE111,
+      title: "Lecture slides",
+      url: "https://example.com/cse111-slides",
+      kind: "drive",
+    });
+    await createResource({
+      userId,
+      courseId: courseIds.CSE111,
+      title: "Past final papers",
+      url: "https://example.com/cse111-past",
+      kind: "assignment",
+      notes: "2022-2025, with marking schemes.",
+    });
+    await createResource({
+      userId,
+      courseId: courseIds.MAT110,
+      title: "Khan Academy: matrices",
+      url: "https://example.com/mat110-playlist",
+      kind: "youtube",
+    });
+    console.log("✓ course resources");
+  }
+
+  const readingCount = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.readingSessions)
+    .where(eq(schema.readingSessions.userId, userId));
+  if (Number(readingCount[0]?.count ?? 0) === 0) {
+    const [reading] = await db
+      .select({ id: schema.books.id })
+      .from(schema.books)
+      .where(and(eq(schema.books.userId, userId), eq(schema.books.status, "reading")))
+      .limit(1);
+    if (reading) {
+      for (const pages of [24, 18, 31, 12]) {
+        await logReading({ userId, bookId: reading.id, pagesTo: pages, durationMinutes: 30 });
+      }
+      console.log("✓ reading sessions");
+    }
+  }
 
   console.log("\nSeed complete. Sign in with:");
   console.log(`  username: ${SEED_USERNAME}`);

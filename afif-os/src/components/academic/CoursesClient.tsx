@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { barPercent } from "@/lib/format";
 import { BookOpen, Pencil, Trash2 } from "lucide-react";
 
 import {
@@ -140,7 +141,7 @@ export function CoursesClient({ rows, semesters }: { rows: Row[]; semesters: Sem
               />
               <ul className="divide-y divide-border">
                 {list.map((row) => {
-                  const gradedPercent = row.totalWeight > 0 ? Math.round((row.gradedWeight / row.totalWeight) * 100) : 0;
+                  const gradedPercent = barPercent(row.gradedWeight, row.totalWeight, 0);
                   return (
                     <li key={row.id} className="px-4 py-3">
                       <div className="flex flex-wrap items-start justify-between gap-2">

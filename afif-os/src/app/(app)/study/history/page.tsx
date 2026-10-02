@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, History } from "lucide-react";
 import { requireUser } from "@/server/auth/session";
 import { Badge, Card, CardHeader, EmptyState, SectionTitle } from "@/components/ui/primitives";
-import { formatHoursMinutes, hourLabel } from "@/lib/format";
+import { barPercent, formatHoursMinutes, hourLabel } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { shiftDayKey, todayKey } from "@/server/lib/time";
 import { getDaySummary, getMonthSummary, getTimeline, getWeekSummary } from "@/server/services/study";
@@ -91,7 +91,7 @@ export default async function StudyHistoryPage({
                           title={`${item.label} · ${formatHoursMinutes(item.seconds)}`}
                           className="h-full rounded-sm"
                           style={{
-                            width: `${Math.max(2, (item.seconds / peakHour) * 100)}%`,
+                            width: `${Math.max(2, barPercent(item.seconds, peakHour))}%`,
                             backgroundColor: item.color ?? "rgb(99 102 241)",
                             opacity: 0.85,
                           }}
@@ -153,7 +153,7 @@ export default async function StudyHistoryPage({
                       <div
                         className="h-full rounded-full"
                         style={{
-                          width: `${(slice.seconds / Math.max(1, day.totalSeconds)) * 100}%`,
+                          width: `${barPercent(slice.seconds, day.totalSeconds)}%`,
                           backgroundColor: slice.color ?? "rgb(99 102 241)",
                         }}
                       />
@@ -177,7 +177,7 @@ export default async function StudyHistoryPage({
                     <div className="flex h-16 w-full items-end rounded bg-muted">
                       <div
                         className={cn("w-full rounded", entry.dayKey === dayKey ? "bg-primary" : "bg-primary/50")}
-                        style={{ height: `${Math.max(entry.seconds > 0 ? 6 : 0, (entry.seconds / peak) * 100)}%` }}
+                        style={{ height: `${Math.max(entry.seconds > 0 ? 6 : 0, barPercent(entry.seconds, peak))}%` }}
                         title={`${entry.dayKey}: ${formatHoursMinutes(entry.seconds)}`}
                       />
                     </div>

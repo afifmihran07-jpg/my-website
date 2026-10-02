@@ -23,6 +23,7 @@ import {
   type SerializedCourseProgress,
 } from "@/server/services/academic-actions";
 import { ASSESSMENT_KIND_LABELS } from "@/lib/labels";
+import { barPercent } from "@/lib/format";
 
 const KINDS = Object.keys(ASSESSMENT_KIND_LABELS);
 const EMPTY_ASSESSMENT = { courseId: "", name: "", kind: "other", maxMarks: "100", weight: "10", scheduledFor: "" };
@@ -192,7 +193,7 @@ export function GradesClient({
               </div>
               <div className="px-4 pb-3">
                 <Progress
-                  value={course.totalMaxMarks > 0 ? (course.securedPercent / course.maxPossiblePercent) * 100 : 0}
+                  value={barPercent(course.securedPercent, course.maxPossiblePercent, 4)}
                 />
               </div>
 
@@ -219,6 +220,10 @@ export function GradesClient({
                     No assessments yet. Add the quizzes, midterms and final with their weight.
                   </p>
                 ) : (
+                  /* The table needs 520px to stay readable; on a phone that is
+                     wider than the viewport, so scroll it inside the card
+                     instead of letting it push the whole page sideways. */
+                  <div className="overflow-x-auto">
                   <table className="w-full min-w-[520px] border-t border-border text-left text-xs">
                     <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                       <tr>
@@ -261,6 +266,7 @@ export function GradesClient({
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 )
               ) : null}
             </Card>

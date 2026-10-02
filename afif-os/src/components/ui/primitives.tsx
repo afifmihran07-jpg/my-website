@@ -250,7 +250,12 @@ export function Progress({
   tone?: "primary" | "accent" | "warning";
   className?: string;
 }) {
-  const pct = max <= 0 ? 0 : Math.min(100, Math.max(0, (value / max) * 100));
+  // Math.max/Math.min propagate NaN, so a non-finite value or max would render
+  // `width:NaN%` and the bar would disappear silently. Reject it explicitly.
+  const ratio = max > 0 && Number.isFinite(value) && Number.isFinite(max) ? (value / max) * 100 : 0;
+  // Rounded to 2dp: an unrounded ratio lands in the DOM as 28.000000000000004%,
+  // which is float noise the browser has to parse for no visual difference.
+  const pct = Number.isFinite(ratio) ? Math.round(Math.min(100, Math.max(0, ratio)) * 100) / 100 : 0;
   const bar = { primary: "bg-primary", accent: "bg-accent", warning: "bg-warning" }[tone];
   return (
     <div className={cn("h-1.5 w-full overflow-hidden rounded-full bg-muted", className)}>

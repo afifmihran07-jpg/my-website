@@ -7,11 +7,11 @@ import { NAV_GROUPS, NAV_STANDALONE, TOTAL_PHASES } from "@/components/layout/na
 export const dynamic = "force-dynamic";
 
 /**
- * Honest placeholder for modules that are scheduled but not built yet.
+ * Catch-all for URLs that match no real screen.
  *
- * The database tables for these modules already exist (see §33 of the spec), so
- * nothing here is faked — the page says exactly what is missing and when it
- * lands, instead of rendering empty CRUD that pretends to work.
+ * Every module in the navigation is implemented, so reaching this page means the
+ * address itself is wrong. It reports that plainly rather than pretending a
+ * module is still under construction.
  */
 export default async function ModulePlaceholder({ params }: { params: Promise<{ slug: string[] }> }) {
   await requireUser();
@@ -25,7 +25,7 @@ export default async function ModulePlaceholder({ params }: { params: Promise<{ 
 
   const group = NAV_GROUPS.find((entry) => entry.items.some((child) => child.href === path || child.href.startsWith(`${path}?`)));
 
-  const phase = item?.phase ?? 5;
+  const phase = item?.phase ?? null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -34,12 +34,19 @@ export default async function ModulePlaceholder({ params }: { params: Promise<{ 
           title={item?.label ?? path}
           subtitle={group ? `${group.label} module` : "Module"}
           icon={<Hammer className="h-4 w-4" />}
-          action={<Badge tone="warning">Phase {phase} of {TOTAL_PHASES}</Badge>}
+          action={
+            phase ? (
+              <Badge tone="warning">Phase {phase} of {TOTAL_PHASES}</Badge>
+            ) : (
+              <Badge tone="danger">Not found</Badge>
+            )
+          }
         />
         <div className="space-y-3 px-4 py-4 text-sm leading-relaxed text-muted-foreground">
           <p>
-            This screen is not built yet. The tables it needs already exist in PostgreSQL and are migrated, so the
-            schema is ready — only the interface is missing.
+            {phase
+              ? "This screen is not built yet. The tables it needs already exist in PostgreSQL and are migrated, so the schema is ready — only the interface is missing."
+              : "No screen lives at this address. Every module in the navigation is built, so this is most likely a mistyped or outdated link."}
           </p>
           <p className="text-xs">
             Nothing on this page is placeholder data: Afif OS never renders invented records. When the module ships it
@@ -58,14 +65,17 @@ export default async function ModulePlaceholder({ params }: { params: Promise<{ 
                 "Life modules: prayer, medication, diary, photos, timeline",
                 "Analytics",
                 "AI advisor",
-              ].map((label, index) => (
-                <li key={label} className="flex gap-2">
-                  <span className={`tabular w-4 shrink-0 ${index + 1 <= phase ? "text-accent" : "text-muted-foreground/60"}`}>
-                    {index + 1}.
-                  </span>
-                  <span className={index + 1 <= phase ? "text-foreground" : ""}>{label}</span>
-                </li>
-              ))}
+              ].map((label, index) => {
+                const done = index + 1 <= (phase ?? TOTAL_PHASES);
+                return (
+                  <li key={label} className="flex gap-2">
+                    <span className={`tabular w-4 shrink-0 ${done ? "text-accent" : "text-muted-foreground/60"}`}>
+                      {index + 1}.
+                    </span>
+                    <span className={done ? "text-foreground" : ""}>{label}</span>
+                  </li>
+                );
+              })}
             </ol>
           </div>
         </div>

@@ -22,7 +22,7 @@ import { startStudyAction, stopStudyAction } from "@/server/services/study-actio
 import { setTaskStatusAction } from "@/server/services/tasks-actions";
 import type { CurrentState, NextAction, Deadline } from "@/server/services/dashboard";
 import { Badge, Button, Card, CardHeader, EmptyState, Progress, SectionTitle } from "@/components/ui/primitives";
-import { formatDay, formatDuration, formatHoursMinutes, greetingFor, relativeTime } from "@/lib/format";
+import { formatDay, formatDuration, formatHoursMinutes, greetingFor, relativeTime, barPercent } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 export type DashboardProps = {
@@ -254,7 +254,7 @@ function StudyNowCard({ study }: { study: DashboardProps["study"] }) {
   };
 
   const planned = dto?.plannedMinutes ? dto.plannedMinutes * 60 : null;
-  const plannedProgress = planned ? Math.min(100, (elapsed / planned) * 100) : null;
+  const plannedProgress = planned ? barPercent(elapsed, planned) : null;
 
   return (
     <Card className="h-full">
@@ -511,7 +511,7 @@ function WeekCard({ study }: { study: DashboardProps["study"] }) {
       <div className="px-4 py-4">
         <div className="flex h-28 items-end gap-1.5">
           {study.weekPerDay.map((day) => {
-            const height = Math.round((day.seconds / peak) * 100);
+            const height = barPercent(day.seconds, peak, 0);
             const weekday = new Date(`${day.dayKey}T00:00:00Z`).getUTCDay();
             return (
               <div key={day.dayKey} className="flex flex-1 flex-col items-center gap-1">

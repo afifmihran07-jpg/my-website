@@ -24,9 +24,8 @@ export const timeValue = z
 
 /** Accepts "" or "   " as null so HTML forms don't produce empty-string UUIDs. */
 export const uuid = z
-  .string()
-  .trim()
-  .transform((v) => (v === "" ? null : v))
+  .union([z.string(), z.null()])
+  .transform((v) => (v === null || v.trim() === "" ? null : v.trim()))
   .pipe(z.uuid("Not a valid reference").nullable());
 
 export const optionalText = (max: number, label: string) =>
@@ -45,14 +44,29 @@ export const requiredText = (max: number, label: string, min = 1) =>
     .min(min, `${label} cannot be empty`)
     .max(max, `${label} must be ${max} characters or fewer`);
 
+/**
+ * Optional whole number from an HTML form.
+ *
+ * A cleared `<input type="number">` submits `""`, which `z.coerce.number()`
+ * turns into 0 — so an untouched field used to fail the minimum. Blank means
+ * absent, not zero. Refinements rather than `.pipe()` because piping through a
+ * second schema fights Zod v4's inferred output type.
+ */
 export const optionalInt = (min: number, max: number, label: string) =>
-  z.coerce
-    .number()
-    .int(`${label} must be a whole number`)
-    .min(min, `${label} must be at least ${min}`)
-    .max(max, `${label} must be at most ${max}`)
-    .nullable()
-    .optional();
+  z
+    .union([z.string(), z.number(), z.null()])
+    .optional()
+    // undefined stays undefined: on a partial update an omitted field must mean
+    // "leave it alone", not "clear it".
+    .transform((v) => {
+      if (v === undefined) return undefined;
+      if (v === null || (typeof v === "string" && v.trim() === "")) return null;
+      return Number(v);
+    })
+    .refine((v) => v == null || !Number.isNaN(v), `${label} must be a number`)
+    .refine((v) => v == null || Number.isInteger(v), `${label} must be a whole number`)
+    .refine((v) => v == null || v >= min, `${label} must be at least ${min}`)
+    .refine((v) => v == null || v <= max, `${label} must be at most ${max}`);
 
 export const optionalUrl = z
   .string()

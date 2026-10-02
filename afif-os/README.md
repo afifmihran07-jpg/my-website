@@ -186,7 +186,7 @@ tokens excluded), plus CSV for the time-series tables. You are never locked in.
 npm test
 ```
 
-175 tests across 14 files, all running against a real PostgreSQL database:
+203 tests across 16 files, all running against a real PostgreSQL database:
 
 - **auth** — hashing, policy, session resolution, expiry, revocation, lockout, no hash leak
 - **study** — start, duplicate prevention, refresh persistence, pause, resume, stop,

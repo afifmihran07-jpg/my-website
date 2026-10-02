@@ -4,7 +4,7 @@ import * as React from "react";
 import { LineChart } from "lucide-react";
 
 import { Alert, Badge, Card, CardHeader, EmptyState, Label, Progress } from "@/components/ui/primitives";
-import { formatHoursMinutes } from "@/lib/format";
+import { barPercent, formatHoursMinutes } from "@/lib/format";
 import { STAGE_LABELS, type MasteryStage } from "@/server/services/common-validation";
 
 type Slice = { key: string; label: string; seconds: number; sessions: number; percent: number };
@@ -150,7 +150,7 @@ export function AnalyticsClient({
                 <div
                   key={point.dayKey}
                   className="group relative flex-1 rounded-t bg-primary/70 transition-colors hover:bg-primary"
-                  style={{ height: `${Math.max((point.seconds / peakSeconds) * 100, point.seconds > 0 ? 3 : 1)}%` }}
+                  style={{ height: `${Math.max(barPercent(point.seconds, peakSeconds), point.seconds > 0 ? 3 : 1)}%` }}
                   title={`${point.dayKey}: ${formatHoursMinutes(point.seconds)} · ${point.sessions} sessions`}
                 />
               ))}
@@ -208,7 +208,7 @@ export function AnalyticsClient({
                 <div
                   key={row.hour}
                   className="flex-1 rounded-t bg-accent/70"
-                  style={{ height: `${Math.max((row.seconds / max) * 100, row.seconds > 0 ? 4 : 1)}%` }}
+                  style={{ height: `${Math.max(barPercent(row.seconds, max), row.seconds > 0 ? 4 : 1)}%` }}
                   title={`${String(row.hour).padStart(2, "0")}:00 — ${formatHoursMinutes(row.seconds)}`}
                 />
               );
@@ -228,7 +228,7 @@ export function AnalyticsClient({
                 <li key={row.weekday} className="flex items-center gap-2 text-xs">
                   <span className="w-20 shrink-0 text-muted-foreground">{row.label.slice(0, 3)}</span>
                   <div className="flex-1">
-                    <Progress value={(row.seconds / max) * 100} tone="accent" />
+                    <Progress value={barPercent(row.seconds, max)} tone="accent" />
                   </div>
                   <span className="w-16 shrink-0 text-right text-muted-foreground">{formatHoursMinutes(row.seconds)}</span>
                 </li>

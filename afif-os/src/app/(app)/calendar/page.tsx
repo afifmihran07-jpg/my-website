@@ -4,7 +4,7 @@ import { CalendarDays, Check } from "lucide-react";
 import { requireUser } from "@/server/auth/session";
 import { Badge, Card, CardHeader, EmptyState } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
-import { formatHoursMinutes, formatTimeOfDay } from "@/lib/format";
+import { formatHoursMinutes, formatTimeOfDay, barPercent } from "@/lib/format";
 import { dayRange, monthRange, shiftDayKey, toLocalDayKey, todayKey, weekdayOfKey } from "@/server/lib/time";
 import { db } from "@/server/db";
 import { achievements, calendarEvents, classSchedules, diaryEntries, photos, tasks } from "@/server/db/schema";
@@ -238,8 +238,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                   key={segment.sessionId + segment.startHour}
                   title={`${segment.label} ${formatHoursMinutes(segment.seconds)}`}
                   style={{
-                    width: `${(segment.seconds / Math.max(1, 86400)) * 100}%`,
-                    marginLeft: `${((segment.startHour * 60 + segment.startMinute) / 1440) * 100}%`,
+                    width: `${barPercent(segment.seconds, 86400, 2)}%`,
+                    marginLeft: `${barPercent(segment.startHour * 60 + segment.startMinute, 1440, 2)}%`,
                     position: "absolute",
                     backgroundColor: segment.color ?? "rgb(99 102 241)",
                     height: "100%",
