@@ -85,14 +85,26 @@ async function main() {
   const userId = user.id;
 
   /* ---------------- semester + courses ---------------- */
-  // Look up before inserting: `semesters` has no unique constraint on the name,
-  // so `onConflictDoNothing()` never fires and every run would add another
-  // "Semester 1". Courses are protected by a unique index; semesters are not.
-  const [existingSemester] = await db
+  // `semesters` carries no unique constraint on the name, so
+  // `onConflictDoNothing()` never fires and a plain insert would add another
+  // "Semester 1" on every run. Courses are protected by a unique index;
+  // semesters are not, so look first.
+  //
+  // Match on the name, then fall back to the oldest semester this user has:
+  // renaming the seeded semester is an ordinary thing to do, and the name match
+  // alone would silently create a second one on the next run.
+  const [byName] = await db
     .select()
     .from(schema.semesters)
     .where(and(eq(schema.semesters.userId, userId), eq(schema.semesters.name, "Semester 1")))
     .limit(1);
+  const [oldest] = await db
+    .select()
+    .from(schema.semesters)
+    .where(eq(schema.semesters.userId, userId))
+    .orderBy(schema.semesters.createdAt)
+    .limit(1);
+  const existingSemester = byName ?? oldest;
   const [semester] = existingSemester
     ? [existingSemester]
     : await db
