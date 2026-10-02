@@ -13,6 +13,20 @@ import {
   type Feasibility,
   type CourseProgress,
 } from "@/server/services/dashboard";
+import {
+  createResource,
+  deleteResource,
+  setActiveSemester,
+  updateCourse,
+  updateResource,
+  updateSemester,
+} from "@/server/services/academic";
+import {
+  createResourceSchema,
+  updateCourseSchema,
+  updateResourceSchema,
+  updateSemesterSchema,
+} from "@/server/services/academic-validation";
 
 const semesterSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -238,5 +252,104 @@ export async function evaluateTargetAction(
     if (!userId) return fail("You need to be signed in.");
     if (!Number.isFinite(target) || target < 0 || target > 5) return fail("Target must be between 0 and 5.");
     return ok(await evaluateTarget(userId, semesterId, target));
+  });
+}
+
+/* --------------------------- management pages ------------------------------ */
+
+export async function setActiveSemesterAction(semesterId: string): Promise<ActionResult<{ id: string }>> {
+  return safeAction("semester:activate", async () => {
+    const userId = await currentUserId();
+    if (!userId) return fail("You need to be signed in.");
+    const done = await setActiveSemester(userId, semesterId);
+    if (!done) return fail("That semester does not exist.");
+    revalidate();
+    revalidatePath("/academic/semesters");
+    revalidatePath("/today");
+    return ok({ id: semesterId });
+  });
+}
+
+export async function updateSemesterAction(
+  semesterId: string,
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  return safeAction("semester:update", async () => {
+    const userId = await currentUserId();
+    if (!userId) return fail("You need to be signed in.");
+
+    const parsed = updateSemesterSchema.safeParse(input);
+    if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Check the highlighted fields.");
+
+    const row = await updateSemester(userId, semesterId, parsed.data);
+    if (!row) return fail("That semester does not exist.");
+    revalidate();
+    revalidatePath("/academic/semesters");
+    return ok({ id: row.id });
+  });
+}
+
+export async function updateCourseAction(
+  courseId: string,
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  return safeAction("course:update", async () => {
+    const userId = await currentUserId();
+    if (!userId) return fail("You need to be signed in.");
+
+    const parsed = updateCourseSchema.safeParse(input);
+    if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Check the highlighted fields.");
+
+    const row = await updateCourse(userId, courseId, parsed.data);
+    if (!row) return fail("That course does not exist.");
+    revalidate();
+    revalidatePath("/academic/courses");
+    revalidatePath("/academic/resources");
+    return ok({ id: row.id });
+  });
+}
+
+export async function createResourceAction(input: unknown): Promise<ActionResult<{ id: string }>> {
+  return safeAction("resource:create", async () => {
+    const userId = await currentUserId();
+    if (!userId) return fail("You need to be signed in.");
+
+    const parsed = createResourceSchema.safeParse(input);
+    if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Check the highlighted fields.");
+    if (!parsed.data.url) return fail("A resource needs a link.");
+
+    const row = await createResource({ ...parsed.data, url: parsed.data.url, userId });
+    revalidatePath("/academic/resources");
+    return ok({ id: row.id });
+  });
+}
+
+export async function updateResourceAction(
+  resourceId: string,
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  return safeAction("resource:update", async () => {
+    const userId = await currentUserId();
+    if (!userId) return fail("You need to be signed in.");
+
+    const parsed = updateResourceSchema.safeParse(input);
+    if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "Check the highlighted fields.");
+
+    const row = await updateResource(userId, resourceId, parsed.data);
+    if (!row) return fail("That resource does not exist.");
+    revalidatePath("/academic/resources");
+    return ok({ id: row.id });
+  });
+}
+
+export async function deleteResourceAction(resourceId: string): Promise<ActionResult<{ id: string }>> {
+  return safeAction("resource:delete", async () => {
+    const userId = await currentUserId();
+    if (!userId) return fail("You need to be signed in.");
+
+    const deleted = await deleteResource(userId, resourceId);
+    if (!deleted) return fail("That resource does not exist.");
+    revalidatePath("/academic/resources");
+    return ok({ id: resourceId });
   });
 }

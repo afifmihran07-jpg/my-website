@@ -242,3 +242,52 @@ export const RELATION_LABELS: Record<RelationType, string> = {
   led_to: "led to",
   part_of: "is part of",
 };
+
+/* ------------------------------- academic ---------------------------------- */
+
+export const SEMESTER_STATUSES = ["planned", "active", "completed"] as const;
+export type SemesterStatus = (typeof SEMESTER_STATUSES)[number];
+
+export const ACADEMIC_ASSESSMENT_KINDS = [
+  "quiz",
+  "assignment",
+  "midterm",
+  "final",
+  "presentation",
+  "lab",
+  "other",
+] as const;
+export type AcademicAssessmentKind = (typeof ACADEMIC_ASSESSMENT_KINDS)[number];
+
+export const RESOURCE_KINDS = [
+  "drive",
+  "pdf",
+  "youtube",
+  "link",
+  "github",
+  "assignment",
+  "note",
+  "other",
+] as const;
+export type ResourceKind = (typeof RESOURCE_KINDS)[number];
+
+export const RESOURCE_KIND_LABELS: Record<ResourceKind, string> = {
+  drive: "Drive",
+  pdf: "PDF",
+  youtube: "YouTube",
+  link: "Link",
+  github: "GitHub",
+  assignment: "Assignment",
+  note: "Note",
+  other: "Other",
+};
+
+export const ASSESSMENT_KIND_LABELS: Record<(typeof ACADEMIC_ASSESSMENT_KINDS)[number], string> = {
+  quiz: "Quiz",
+  assignment: "Assignment",
+  midterm: "Midterm",
+  final: "Final",
+  presentation: "Presentation",
+  lab: "Lab",
+  other: "Other",
+};
