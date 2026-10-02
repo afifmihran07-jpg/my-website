@@ -13,7 +13,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     // The suite talks to a real PostgreSQL server; tests are serialised so
     // rate-limit and study-timer state cannot interleave.
     fileParallelism: false,

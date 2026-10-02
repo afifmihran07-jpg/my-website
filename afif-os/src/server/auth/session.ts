@@ -1,6 +1,6 @@
 import "server-only";
 import { and, eq, isNull, lt, gt } from "drizzle-orm";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/server/db";
 import { sessions, users, type User } from "@/server/db/schema";
@@ -14,12 +14,56 @@ export function ttlSeconds(remember: boolean): number {
   return remember ? REMEMBER_DAYS * 24 * 3600 : env().SESSION_TTL_HOURS * 3600;
 }
 
-function cookieOptions(maxAgeSeconds: number) {
+/**
+ * Whether the session cookie may carry the `Secure` attribute.
+ *
+ * This has to describe the connection the browser is actually using, not the
+ * build mode. `next start` runs with NODE_ENV=production even when it is being
+ * served over plain http on localhost — and a browser silently *discards* a
+ * `Secure` cookie received over http. That discard looks exactly like a login
+ * that never completes: the action succeeds, the cookie is dropped, and the
+ * redirect to /dashboard bounces straight back to /login.
+ *
+ * Order of precedence:
+ *   1. COOKIE_SECURE=true|false — explicit override, for local http runs and
+ *      for hosts that terminate TLS without forwarding the protocol.
+ *   2. x-forwarded-proto — when behind a reverse proxy that reports it.
+ *   3. NODE_ENV — the old behaviour, kept as the safe default.
+ */
+/**
+ * Pure decision function behind {@link cookieIsSecure}, split out so the
+ * behaviour can be tested without a live request.
+ */
+export function resolveCookieSecure(input: {
+  override?: string | null;
+  forwardedProto?: string | null;
+  nodeEnv?: string | null;
+}): boolean {
+  if (input.override === "true") return true;
+  if (input.override === "false") return false;
+  if (input.forwardedProto) return input.forwardedProto.split(",")[0]!.trim() === "https";
+  return (input.nodeEnv ?? process.env.NODE_ENV) === "production";
+}
+
+async function cookieIsSecure(): Promise<boolean> {
+  let forwarded: string | null = null;
+  try {
+    forwarded = (await headers()).get("x-forwarded-proto");
+  } catch {
+    // Outside a request scope; fall through to the build-mode default.
+  }
+  return resolveCookieSecure({
+    override: process.env.COOKIE_SECURE,
+    forwardedProto: forwarded,
+    nodeEnv: process.env.NODE_ENV,
+  });
+}
+
+async function cookieOptions(maxAgeSeconds: number) {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
-    // Secure only when served over HTTPS (production). Local dev is http.
-    secure: process.env.NODE_ENV === "production",
+    secure: await cookieIsSecure(),
     path: "/",
     maxAge: maxAgeSeconds,
   };
@@ -52,7 +96,7 @@ export async function createSession(
   });
 
   const jar = await cookies();
-  jar.set(env().SESSION_COOKIE, token, cookieOptions(ttlSeconds(remember)));
+  jar.set(env().SESSION_COOKIE, token, await cookieOptions(ttlSeconds(remember)));
 
   return { token, expiresAt };
 }

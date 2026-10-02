@@ -47,42 +47,53 @@ export function QuickAdd({ open, onClose }: { open: boolean; onClose: () => void
     event.preventDefault();
     setPending(true);
     setError(null);
-    const result = await createTaskAction({
-      title: task.title,
-      dueDate: task.dueDate || null,
-      priority: task.priority,
-      courseId: task.courseId || null,
-      recurrence: "none",
-    });
-    setPending(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await createTaskAction({
+        title: task.title,
+        dueDate: task.dueDate || null,
+        priority: task.priority,
+        courseId: task.courseId || null,
+        recurrence: "none",
+      });
+      setPending(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setTask({ title: "", dueDate: "", priority: "medium", courseId: "" });
+      setNotice(`Added “${result.data.title}”.`);
+      router.refresh();
+    } catch {
+      // A rejected action must never leave the button spinning.
+      setPending(false);
+      setError("The request did not complete. Reload the page and try again.");
     }
-    setTask({ title: "", dueDate: "", priority: "medium", courseId: "" });
-    setNotice(`Added “${result.data.title}”.`);
-    router.refresh();
   };
 
   const submitStudy = async (event: React.FormEvent) => {
     event.preventDefault();
     setPending(true);
     setError(null);
-    const result = await startStudyAction({
-      title: study.title,
-      courseId: study.courseId || null,
-      plannedMinutes: study.plannedMinutes ? Number(study.plannedMinutes) : null,
-      clientKey: `qa-${crypto.randomUUID()}`,
-    });
-    setPending(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await startStudyAction({
+        title: study.title,
+        courseId: study.courseId || null,
+        plannedMinutes: study.plannedMinutes ? Number(study.plannedMinutes) : null,
+        clientKey: `qa-${crypto.randomUUID()}`,
+      });
+      setPending(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      await refresh();
+      setStudy({ title: "", courseId: "", plannedMinutes: "" });
+      setNotice(`Started “${result.data.title}”.`);
+      router.refresh();
+    } catch {
+      setPending(false);
+      setError("The request did not complete. Reload the page and try again.");
     }
-    await refresh();
-    setStudy({ title: "", courseId: "", plannedMinutes: "" });
-    setNotice(`Started “${result.data.title}”.`);
-    router.refresh();
   };
 
   return (

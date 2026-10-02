@@ -230,27 +230,37 @@ function StudyNowCard({ study }: { study: DashboardProps["study"] }) {
     if (!title.trim()) return;
     setPending(true);
     setError(null);
-    const result = await startStudyAction({ title, clientKey: `dash-${crypto.randomUUID()}` });
-    setPending(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await startStudyAction({ title, clientKey: `dash-${crypto.randomUUID()}` });
+      setPending(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setTitle("");
+      await refresh();
+      router.refresh();
+    } catch {
+      setPending(false);
+      setError("The request did not complete. Reload the page and try again.");
     }
-    setTitle("");
-    await refresh();
-    router.refresh();
   };
 
   const stop = async () => {
     setPending(true);
-    const result = await stopStudyAction();
-    setPending(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await stopStudyAction();
+      setPending(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      await refresh();
+      router.refresh();
+    } catch {
+      setPending(false);
+      setError("The request did not complete. Reload the page and try again.");
     }
-    await refresh();
-    router.refresh();
   };
 
   const planned = dto?.plannedMinutes ? dto.plannedMinutes * 60 : null;
@@ -361,9 +371,13 @@ function TodayCard({ today }: { today: DashboardProps["today"] }) {
 
   const complete = async (id: string) => {
     setBusy(id);
-    await setTaskStatusAction(id, "completed");
-    setBusy(null);
-    router.refresh();
+    try {
+      await setTaskStatusAction(id, "completed");
+      router.refresh();
+    } finally {
+      // Always clear the row's busy state, even when the action rejects.
+      setBusy(null);
+    }
   };
 
   const nextClass = today.classes.find((c) => Date.parse(c.end) > Date.now());

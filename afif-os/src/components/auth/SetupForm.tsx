@@ -36,15 +36,25 @@ export function SetupForm() {
     setPending(true);
     setError(null);
     setFieldErrors({});
-    const result = await setupAccountAction(form);
-    if (result.ok) {
-      router.replace(result.data.redirectTo);
-      router.refresh();
-      return;
+    try {
+      const result = await setupAccountAction(form);
+      if (result.ok) {
+        router.replace(result.data.redirectTo);
+        router.refresh();
+        // `pending` stays set: navigation unmounts this form immediately.
+        return;
+      }
+      setError(result.error);
+      setFieldErrors(result.fieldErrors ?? {});
+      setPending(false);
+    } catch {
+      // Same guard as the login form: a rejected action would otherwise leave
+      // the button spinning forever with no way to retry.
+      setError(
+        "The request did not complete. This usually means the server was restarted or redeployed — reload this page and try again.",
+      );
+      setPending(false);
     }
-    setError(result.error);
-    setFieldErrors(result.fieldErrors ?? {});
-    setPending(false);
   };
 
   return (

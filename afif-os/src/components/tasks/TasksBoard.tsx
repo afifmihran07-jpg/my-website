@@ -52,29 +52,38 @@ export function TasksBoard({
     event.preventDefault();
     setPending(true);
     setError(null);
-    const result = await createTaskAction({
-      title: form.title,
-      dueDate: form.dueDate || null,
-      priority: form.priority,
-      courseId: form.courseId || null,
-      projectId: form.projectId || null,
-      recurrence: "none",
-    });
-    setPending(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await createTaskAction({
+        title: form.title,
+        dueDate: form.dueDate || null,
+        priority: form.priority,
+        courseId: form.courseId || null,
+        projectId: form.projectId || null,
+        recurrence: "none",
+      });
+      setPending(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setForm({ title: "", dueDate: "", priority: "medium", courseId: "", projectId: "" });
+      setAdding(false);
+      router.refresh();
+    } catch {
+      setPending(false);
+      setError("The request did not complete. Reload the page and try again.");
     }
-    setForm({ title: "", dueDate: "", priority: "medium", courseId: "", projectId: "" });
-    setAdding(false);
-    router.refresh();
   };
 
   const setStatus = async (id: string, status: "completed" | "todo") => {
     setBusy(id);
-    await setTaskStatusAction(id, status);
-    setBusy(null);
-    router.refresh();
+    try {
+      await setTaskStatusAction(id, status);
+      router.refresh();
+    } finally {
+      // Always clear the row's busy state, even when the action rejects.
+      setBusy(null);
+    }
   };
 
   const counts: Record<TabId, number> = {

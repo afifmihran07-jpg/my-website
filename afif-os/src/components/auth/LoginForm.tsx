@@ -37,16 +37,30 @@ export function LoginForm({
     setError(null);
     setFieldErrors({});
 
-    const result = await loginAction({ identifier, password, remember });
-    if (result.ok) {
-      const target = next && next.startsWith("/") ? next : result.data.redirectTo;
-      router.replace(target);
-      router.refresh();
-      return;
+    try {
+      const result = await loginAction({ identifier, password, remember });
+      if (result.ok) {
+        const target = next && next.startsWith("/") ? next : result.data.redirectTo;
+        router.replace(target);
+        router.refresh();
+        // Leave `pending` set: the navigation is about to unmount this form, and
+        // flashing the button back to "Sign in" on the way out looks like a
+        // failure. Every non-navigating path below must clear it.
+        return;
+      }
+      setError(result.error);
+      setFieldErrors(result.fieldErrors ?? {});
+      setPending(false);
+    } catch {
+      // `loginAction` rejects when the request itself fails — a stale build
+      // serving "Server action not found", a dropped network connection, or an
+      // unhandled server error. Without this the button would sit on
+      // "Signing in…" forever and the user would have no way to retry.
+      setError(
+        "The sign-in request did not complete. This usually means the server was restarted or redeployed — reload this page and try again.",
+      );
+      setPending(false);
     }
-    setError(result.error);
-    setFieldErrors(result.fieldErrors ?? {});
-    setPending(false);
   };
 
   return (
