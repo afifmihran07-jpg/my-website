@@ -186,7 +186,7 @@ tokens excluded), plus CSV for the time-series tables. You are never locked in.
 npm test
 ```
 
-214 tests across 18 files, all running against a real PostgreSQL database:
+231 tests across 19 files, all running against a real PostgreSQL database:
 
 - **auth** — hashing, policy, session resolution, expiry, revocation, lockout, no hash leak
 - **study** — start, duplicate prevention, refresh persistence, pause, resume, stop,
@@ -215,8 +215,12 @@ npm test
   delivers a due reminder when called correctly
 - **login-pending** — renders the login form under jsdom and asserts a rejected action
   can never leave the button stuck on "Signing in…", and that success navigates
-- **session-cookie** — the `Secure` attribute follows the connection actually in use, not
-  the build mode, so a browser on plain http is not handed a cookie it must discard
+- **session-cookie** — the `Secure` and `SameSite` attributes follow the connection and
+  embedding context actually in use, not the build mode, so a browser on plain http is not
+  handed a cookie it must discard and an embedded preview is not handed one it will never
+  send back
+- **auth-lifecycle** — login → session → dashboard → repeated refresh → logout → protected
+  again, plus the cookie attribute guarantees for each deployment context
 
 Verified separately over HTTP against a production build: anonymous access redirects from
 every protected route; a wrong password returns a generic error with no cookie; correct
