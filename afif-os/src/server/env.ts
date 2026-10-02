@@ -11,6 +11,12 @@ const envSchema = z.object({
     .enum(["0", "1"])
     .default("1")
     .transform((v) => v === "1"),
+  // Shared secret for the cron endpoint POST /api/tick. Optional, but when set
+  // it must be long enough to be unguessable.
+  REMINDER_TICK_TOKEN: z
+    .string()
+    .optional()
+    .refine((v) => !v || v.length >= 16, "REMINDER_TICK_TOKEN must be at least 16 characters"),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_BASE_URL: z.string().optional(),
   OPENAI_MODEL: z.string().optional(),

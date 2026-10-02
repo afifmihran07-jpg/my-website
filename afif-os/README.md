@@ -18,7 +18,7 @@ work, and no invented data anywhere.
 | --- | --- | --- |
 | 1 | Authentication, database, layout, dashboard | **Done** |
 | 2 | Tasks, calendar, study timer, study history | **Done** |
-| 3 | Reminder engine, notifications | **Done** (in-app delivery; web push not configured) |
+| 3 | Reminder engine, notifications | **Done** (in-app delivery + `POST /api/tick` cron; web push not configured) |
 | 4 | Semesters, courses, assessments, CGPA, target calculator | **Done** |
 | 5 | Books, projects, achievements, opportunities | Schema + read on dashboard/today; no CRUD UI |
 | 6 | Polymath, notes, questions, skills, knowledge graph | Schema only |
@@ -63,6 +63,20 @@ Seeded development login: `afif` / `AfifOs!2026` (change it in Settings → Pass
 | `npm run db:generate` | Generate SQL migrations from the Drizzle schema |
 | `npm run db:migrate` | Apply pending migrations |
 | `npm run db:seed -- --confirm` | Seed the development database |
+
+### Scheduling the reminder engine
+
+The engine runs whenever you open the dashboard or the reminders page. For days when you
+don't open it, point a cron job at the engine endpoint:
+
+```bash
+curl -X POST https://your-host/api/tick \
+  -H "Authorization: Bearer $REMINDER_TICK_TOKEN"
+# => {"ok":true,"scanned":3,"sent":1,"failed":0,"missed":0,"rescheduled":2,"ranAt":"…"}
+```
+
+Without `REMINDER_TICK_TOKEN` (minimum 16 characters) the endpoint returns **503** and runs
+nothing — it never becomes an unauthenticated way to mutate reminder state.
 
 ---
 
@@ -157,7 +171,7 @@ tokens excluded), plus CSV for the time-series tables. You are never locked in.
 npm test
 ```
 
-63 tests across 6 files, all running against a real PostgreSQL database:
+69 tests across 7 files, all running against a real PostgreSQL database:
 
 - **auth** — hashing, policy, session resolution, expiry, revocation, lockout, no hash leak
 - **study** — start, duplicate prevention, refresh persistence, pause, resume, stop,
@@ -168,6 +182,8 @@ npm test
 - **reminders** — scheduling, dedupe, delivery + logging, recurrence, missed handling,
   retry, completion
 - **permissions** — sensitive defaults, explicit opt-in, blocked-module behaviour
+- **tick route** — the cron endpoint refuses to run unconfigured, rejects bad tokens, and
+  delivers a due reminder when called correctly
 
 Verified separately over HTTP against a production build: anonymous access redirects from
 every protected route; a wrong password returns a generic error with no cookie; correct
