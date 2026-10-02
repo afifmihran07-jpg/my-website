@@ -9,25 +9,36 @@ Next.js · TypeScript · Tailwind CSS v4 · PostgreSQL · Drizzle ORM · Zod · 
 
 ## Current state
 
-Phases 1–4 of the build plan are implemented and working end to end, plus the reminder
-engine (Phase 3) and a deterministic version of the advisor (Phase 9). Everything else is
-wired into navigation with an honest "not built yet" page — no empty CRUD that pretends to
-work, and no invented data anywhere.
+All nine phases of the build plan are implemented and working end to end. Every route in
+the sidebar reaches a real page reading and writing PostgreSQL — no route renders a "not
+built yet" screen, and no page invents data.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Authentication, database, layout, dashboard | **Done** |
 | 2 | Tasks, calendar, study timer, study history | **Done** |
 | 3 | Reminder engine, notifications | **Done** (in-app delivery + `POST /api/tick` cron; web push not configured) |
-| 4 | Semesters, courses, assessments, CGPA, target calculator | **Done** |
-| 5 | Books, projects, achievements, opportunities | Schema + read on dashboard/today; no CRUD UI |
-| 6 | Polymath, notes, questions, skills, knowledge graph | Schema only |
-| 7 | Life modules (prayer, medication, diary, photos, timeline) | Schema + read-only on Today |
-| 8 | Analytics | Partial (study analytics live in Study History) |
-| 9 | AI advisor | Deterministic rule engine, permission-gated, LLM-ready |
+| 4 | Semesters, courses, assessments, CGPA, target calculator, resources | **Done** |
+| 5 | Books, projects, achievements, opportunities | **Done** |
+| 6 | Polymath, notes, questions, skills, knowledge graph | **Done** |
+| 7 | Life modules (activities, prayer, medication, diary, photos, timeline) | **Done** |
+| 8 | Analytics | **Done** |
+| 9 | AI advisor | **Done** — deterministic rule engine, permission-gated, LLM-ready |
 
-The database schema for **every** phase is already migrated — 41 tables — so later phases
-are additive.
+The database schema is 41 tables, all migrated.
+
+### Things this deliberately does not do
+
+- **No productivity score.** Analytics reports counts, sums and distributions of things
+  you actually recorded. A single blended number would be invented, and it would become
+  the thing optimised instead of the work.
+- **No skill percentages.** Skills are a mastery stage plus the evidence records behind it.
+- **No fake AI.** The advisor is a rule engine that names the tables it read, and every
+  read goes through the permission gate. It is not a chatbot, and there is no LLM call.
+- **No medical advice.** Medication tracking logs what you took; it never recommends
+  changing, skipping or adjusting a dose.
+- **No invented prayer or diary content.** Unlogged prayers stay unlogged; prayer data,
+  photos, diary and medication are closed to the advisor unless explicitly enabled.
 
 ---
 
@@ -94,7 +105,11 @@ src/
     db/                               drizzle client + schema (41 tables)
     lib/                              action wrapper, timezone maths
     services/                         study, tasks, reminders, dashboard, academic,
-                                      advisor, search, export, settings
+                                      books, projects, achievements, opportunities,
+                                      learning, life, analytics, advisor, search,
+                                      export, settings
+                                      (each with a -validation sibling; the actions
+                                      live in *-actions.ts)
   components/                         layout, dashboard, study, tasks, reminders, …
 drizzle/                              SQL migrations
 scripts/                              migrate + seed
@@ -171,7 +186,7 @@ tokens excluded), plus CSV for the time-series tables. You are never locked in.
 npm test
 ```
 
-69 tests across 7 files, all running against a real PostgreSQL database:
+175 tests across 14 files, all running against a real PostgreSQL database:
 
 - **auth** — hashing, policy, session resolution, expiry, revocation, lockout, no hash leak
 - **study** — start, duplicate prevention, refresh persistence, pause, resume, stop,
@@ -179,8 +194,22 @@ npm test
 - **tasks** — create, validation, completion timestamps, buckets, recurrence, archiving
 - **academic** — weighted progress, configurable grading bands, credit-weighted CGPA,
   target feasibility
+- **academic-modules** — semester activation and archiving, course counts and restore,
+  resource ownership, and that a foreign user cannot activate, edit or delete
 - **reminders** — scheduling, dedupe, delivery + logging, recurrence, missed handling,
   retry, completion
+- **books** — page progress derived from the stored page, reading sessions, rejection of
+  a page beyond the book's length
+- **phase5** — projects, achievements and opportunities, including urgency windows and
+  completion stamping
+- **learning** — domains, notes, questions, skills, evidence stages, and the knowledge
+  graph's refusal of self-links, cross-owner links and duplicates
+- **life** — derived activity duration, prayer streak rules, dose uniqueness, diary
+  `aiAllowed` defaulting to false and being withdrawn on re-save, reflections
+- **analytics** — every aggregate reconciled against the raw tables, zeros present for
+  empty days, class time never merged into self-study
+- **advisor** — no question falls through to the default arm, and gated modules return
+  "switched off" with `blocked:*` in the recorded context
 - **permissions** — sensitive defaults, explicit opt-in, blocked-module behaviour
 - **tick route** — the cron endpoint refuses to run unconfigured, rejects bad tokens, and
   delivers a due reminder when called correctly
@@ -196,7 +225,7 @@ the old cookie no longer works.
 
 - **No localStorage persistence.** Browser state is only a cache; the server is the source
   of truth.
-- **No productivity score.** Study analytics report hours, sessions, distribution and
+- **No productivity score.** Analytics report hours, sessions, distribution and
   consistency — evidence, not a number invented to look good.
 - **Stages, not percentages.** Skills and knowledge domains use Exposure → Foundation →
   Working Knowledge → Applied → Advanced, backed by evidence rows.
