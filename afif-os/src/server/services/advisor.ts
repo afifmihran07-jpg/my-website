@@ -14,6 +14,9 @@ import {
   type AiPermissions,
 } from "@/server/db/schema";
 import { buildNextActions } from "@/server/services/dashboard";
+import { medicationAdherence, prayerStats, prayerStreak } from "@/server/services/life";
+import { studyTotals } from "@/server/services/analytics";
+import { formatHoursMinutes } from "@/lib/format";
 import { getDaySummary, getWeekSummary } from "@/server/services/study";
 import { todayKey } from "@/server/lib/time";
 
@@ -37,6 +40,9 @@ export const ADVISOR_QUESTIONS = [
   "Should I start another book?",
   "What are my knowledge gaps?",
   "Review my week.",
+  "How has my study time changed?",
+  "How consistent is my prayer?",
+  "Am I keeping up with my medication?",
 ] as const;
 
 export type AdvisorQuestion = (typeof ADVISOR_QUESTIONS)[number];
@@ -186,6 +192,76 @@ export async function askAdvisor(userId: string, question: string, timeZone: str
         `Today alone: ${Math.round(day.totalSeconds / 60)} minutes of self-study, excluding ${Math.round(
           day.universitySeconds / 60,
         )} minutes of class.`,
+      ].join(" ");
+      break;
+    }
+
+    case "How has my study time changed?": {
+      if (!hasAccess(permissions, "study")) {
+        answer = "Study data is switched off in Privacy & AI access.";
+        rationale = "Enable the Study permission to answer this question.";
+        contextUsed.push("blocked:study");
+        break;
+      }
+      const totals = await studyTotals(userId, 30, timeZone);
+      contextUsed.push("study_sessions");
+      if (totals.sessions === 0) {
+        answer = "No self-study in the last 30 days.";
+        rationale = "Start the study timer on /study and this comparison will have something to compare.";
+        break;
+      }
+      answer = `${formatHoursMinutes(totals.seconds)} over ${totals.daysStudied} of 30 days.`;
+      rationale = [
+        totals.changePercent === null
+          ? "The previous 30 days had no logged study, so there is no trend to report."
+          : `That is ${totals.changePercent > 0 ? "up" : totals.changePercent < 0 ? "down" : "level"} ${Math.abs(totals.changePercent)}% on the previous 30 days (${formatHoursMinutes(totals.previousSeconds)}).`,
+        `Average ${formatHoursMinutes(totals.averagePerStudiedDay)} on the days you did study; longest session ${formatHoursMinutes(totals.longestSessionSeconds)}.`,
+        "Counted from the study timer only — university class time is excluded.",
+      ].join(" ");
+      break;
+    }
+
+    case "How consistent is my prayer?": {
+      if (!hasAccess(permissions, "prayer")) {
+        answer = "Prayer data is switched off in Privacy & AI access.";
+        rationale = "Prayer is private by default. Enable it in Settings to let the advisor read it.";
+        contextUsed.push("blocked:prayer");
+        break;
+      }
+      const [stats, streak] = await Promise.all([prayerStats(userId, 30), prayerStreak(userId, dayKey)]);
+      contextUsed.push("prayer_logs");
+      if (stats.total === 0) {
+        answer = "No prayers logged in the last 30 days.";
+        rationale = "Log prayers on /life/prayer and this will report a real consistency figure.";
+        break;
+      }
+      answer = `${stats.consistency}% on time over the last 30 days; current streak ${streak.current} day${streak.current === 1 ? "" : "s"}.`;
+      rationale = [
+        `${stats.onTime} on time, ${stats.late} late, ${stats.qada} made up as qada and ${stats.missed} missed out of ${stats.total} logged.`,
+        "A day only counts towards the streak when all five are logged and none is marked missed.",
+        "Reported from your log as written — nothing is inferred about prayers you did not record.",
+      ].join(" ");
+      break;
+    }
+
+    case "Am I keeping up with my medication?": {
+      if (!hasAccess(permissions, "medication")) {
+        answer = "Medication data is switched off in Privacy & AI access.";
+        rationale = "Medication is private by default. Enable it in Settings to let the advisor read it.";
+        contextUsed.push("blocked:medication");
+        break;
+      }
+      const adherence = await medicationAdherence(userId, 7);
+      contextUsed.push("medications", "medication_logs");
+      if (adherence.total === 0) {
+        answer = "No doses were scheduled in the last 7 days.";
+        rationale = "Add a medication with times on /life/medication and this will track adherence.";
+        break;
+      }
+      answer = `${adherence.taken} of ${adherence.total} scheduled doses taken in the last 7 days.`;
+      rationale = [
+        `${adherence.skipped} skipped and ${adherence.missed} left untaken; ${adherence.pending} are still pending today.`,
+        "This is a log of what you recorded. It does not recommend changing, skipping or adjusting any dose — that is a decision for you and your doctor.",
       ].join(" ");
       break;
     }
