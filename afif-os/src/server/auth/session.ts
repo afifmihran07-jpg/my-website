@@ -34,36 +34,107 @@ export function ttlSeconds(remember: boolean): number {
  * Pure decision function behind {@link cookieIsSecure}, split out so the
  * behaviour can be tested without a live request.
  */
+export type CookieAttributes = { secure: boolean; sameSite: "lax" | "none" };
+
+/**
+ * Resolve the session cookie's transport attributes for the connection and
+ * embedding context actually in use.
+ *
+ * Two independent things have to be right, and both are environment-dependent:
+ *
+ * 1. `Secure` must describe the wire protocol the BROWSER sees. `next start`
+ *    runs with NODE_ENV=production even over plain http, and a browser silently
+ *    discards a Secure cookie received over http.
+ *
+ * 2. `SameSite=Lax` cookies are NOT sent inside a cross-site iframe. Lax only
+ *    rides along on top-level navigations. So when the app is embedded on
+ *    another origin — a hosted preview pane, for instance — the browser stores
+ *    the session cookie and then never sends it, which presents as a login that
+ *    appears to succeed and then bounces straight back to /login. Embedded
+ *    contexts need `SameSite=None`, which in turn requires `Secure`.
+ *
+ * Precedence for each: explicit env override, then request headers, then the
+ * build-mode default.
+ */
+export function resolveCookieAttributes(input: {
+  secureOverride?: string | null;
+  sameSiteOverride?: string | null;
+  forwardedProto?: string | null;
+  secFetchSite?: string | null;
+  secFetchDest?: string | null;
+  nodeEnv?: string | null;
+}): CookieAttributes {
+  const proto = input.forwardedProto?.split(",")[0]?.trim() ?? null;
+  const https = proto === "https";
+
+  let secure: boolean;
+  if (input.secureOverride === "true") secure = true;
+  else if (input.secureOverride === "false") secure = false;
+  else if (proto) secure = https;
+  else secure = (input.nodeEnv ?? process.env.NODE_ENV) === "production";
+
+  // Embedded cross-site context: the document is framed by another origin.
+  const embedded =
+    input.secFetchDest === "iframe" ||
+    input.secFetchDest === "frame" ||
+    input.secFetchSite === "cross-site" ||
+    input.secFetchSite === "same-site";
+
+  let sameSite: "lax" | "none";
+  if (input.sameSiteOverride === "none") sameSite = "none";
+  else if (input.sameSiteOverride === "lax") sameSite = "lax";
+  else sameSite = embedded ? "none" : "lax";
+
+  // Browsers reject SameSite=None without Secure — it would be dropped outright,
+  // which is worse than Lax. Never emit that combination.
+  if (sameSite === "none" && !secure) {
+    return https ? { secure: true, sameSite: "none" } : { secure, sameSite: "lax" };
+  }
+
+  return { secure, sameSite };
+}
+
+/** Retained for callers/tests that only care about the Secure attribute. */
 export function resolveCookieSecure(input: {
   override?: string | null;
   forwardedProto?: string | null;
   nodeEnv?: string | null;
 }): boolean {
-  if (input.override === "true") return true;
-  if (input.override === "false") return false;
-  if (input.forwardedProto) return input.forwardedProto.split(",")[0]!.trim() === "https";
-  return (input.nodeEnv ?? process.env.NODE_ENV) === "production";
+  return resolveCookieAttributes({
+    secureOverride: input.override,
+    forwardedProto: input.forwardedProto,
+    nodeEnv: input.nodeEnv,
+  }).secure;
 }
 
-async function cookieIsSecure(): Promise<boolean> {
+async function cookieAttributes(): Promise<CookieAttributes> {
   let forwarded: string | null = null;
+  let site: string | null = null;
+  let dest: string | null = null;
   try {
-    forwarded = (await headers()).get("x-forwarded-proto");
+    const h = await headers();
+    forwarded = h.get("x-forwarded-proto");
+    site = h.get("sec-fetch-site");
+    dest = h.get("sec-fetch-dest");
   } catch {
-    // Outside a request scope; fall through to the build-mode default.
+    // Outside a request scope; fall through to the build-mode defaults.
   }
-  return resolveCookieSecure({
-    override: process.env.COOKIE_SECURE,
+  return resolveCookieAttributes({
+    secureOverride: process.env.COOKIE_SECURE,
+    sameSiteOverride: process.env.COOKIE_SAMESITE,
     forwardedProto: forwarded,
+    secFetchSite: site,
+    secFetchDest: dest,
     nodeEnv: process.env.NODE_ENV,
   });
 }
 
 async function cookieOptions(maxAgeSeconds: number) {
+  const { secure, sameSite } = await cookieAttributes();
   return {
     httpOnly: true,
-    sameSite: "lax" as const,
-    secure: await cookieIsSecure(),
+    sameSite,
+    secure,
     path: "/",
     maxAge: maxAgeSeconds,
   };
