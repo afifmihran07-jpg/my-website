@@ -37,21 +37,38 @@ export function LoginForm({
     setError(null);
     setFieldErrors({});
 
+    // Hard ceiling on the pending state. A successful login navigates away and
+    // unmounts this form; if that navigation never settles the button would
+    // otherwise read "Signing in…" forever with no way out. This clears it
+    // and says so instead of leaving the user guessing.
+    const watchdog = window.setTimeout(() => {
+      setPending(false);
+      setError(
+        "Sign-in succeeded but the page did not finish loading. Reload the page — you should already be signed in.",
+      );
+    }, 15_000);
+
     try {
       const result = await loginAction({ identifier, password, remember });
       if (result.ok) {
         const target = next && next.startsWith("/") ? next : result.data.redirectTo;
+        window.clearTimeout(watchdog);
+        // `replace` alone performs the navigation and fetches fresh server data
+        // for the destination. The `router.refresh()` that used to sit here
+        // re-fetched the *current* route (/login), which — now that the
+        // session cookie is set — the guard redirects to /dashboard. Two
+        // concurrent navigations to the same destination raced and the router
+        // could leave the pending navigation unresolved, which is what kept this
+        // form on screen reading "Signing in…".
         router.replace(target);
-        router.refresh();
-        // Leave `pending` set: the navigation is about to unmount this form, and
-        // flashing the button back to "Sign in" on the way out looks like a
-        // failure. Every non-navigating path below must clear it.
         return;
       }
+      window.clearTimeout(watchdog);
       setError(result.error);
       setFieldErrors(result.fieldErrors ?? {});
       setPending(false);
     } catch {
+      window.clearTimeout(watchdog);
       // `loginAction` rejects when the request itself fails — a stale build
       // serving "Server action not found", a dropped network connection, or an
       // unhandled server error. Without this the button would sit on

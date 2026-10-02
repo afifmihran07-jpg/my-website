@@ -36,20 +36,33 @@ export function SetupForm() {
     setPending(true);
     setError(null);
     setFieldErrors({});
+    // Hard ceiling on the pending state, matching the login form.
+    const watchdog = window.setTimeout(() => {
+      setPending(false);
+      setError(
+        "The account was created but the page did not finish loading. Reload the page — you should already be signed in.",
+      );
+    }, 15_000);
+
     try {
       const result = await setupAccountAction(form);
       if (result.ok) {
+        window.clearTimeout(watchdog);
+        // `replace` alone navigates and fetches fresh server data. The
+        // `router.refresh()` that used to follow it re-fetched /setup, which the
+        // guard redirects once the session cookie exists — two concurrent
+        // navigations racing to the same destination.
         router.replace(result.data.redirectTo);
-        router.refresh();
-        // `pending` stays set: navigation unmounts this form immediately.
         return;
       }
+      window.clearTimeout(watchdog);
       setError(result.error);
       setFieldErrors(result.fieldErrors ?? {});
       setPending(false);
     } catch {
       // Same guard as the login form: a rejected action would otherwise leave
       // the button spinning forever with no way to retry.
+      window.clearTimeout(watchdog);
       setError(
         "The request did not complete. This usually means the server was restarted or redeployed — reload this page and try again.",
       );

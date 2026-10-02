@@ -92,7 +92,22 @@ describe("LoginForm never stays pending after a submit settles", () => {
     await waitFor(() => {
       expect(replace).toHaveBeenCalledWith("/dashboard");
     });
-    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("does not fire router.refresh() alongside the navigation", async () => {
+    // This is the actual root cause of the stuck "Signing in…" state.
+    // `refresh()` re-fetched the current route (/login), which the guard
+    // redirects to /dashboard once the session cookie exists — a second
+    // navigation racing the `replace()` to the same destination.
+    loginAction.mockResolvedValue({ ok: true, data: { redirectTo: "/dashboard" } });
+    const { container } = render(<LoginForm needsSetup={false} />);
+
+    submitForm(container);
+
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith("/dashboard");
+    });
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("prefers a safe `next` path and ignores one that leaves the site", async () => {
