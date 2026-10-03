@@ -5,79 +5,133 @@ import * as React from "react";
 /**
  * TEMPORARY DIAGNOSTIC PANEL — delete once the login loop is resolved.
  *
- * Bump this on every change so it is obvious which build is actually running in
- * the browser. Several rounds of fixes were tested against a preview that was
- * not serving the code under test, which made every result uninterpretable.
+ * Bump on every change: several rounds of fixes were tested against a preview
+ * that was not serving the code under test, which made every result
+ * uninterpretable.
  */
-const BUILD_STAMP = "diag-2";
+export const BUILD_STAMP = "diag-3";
 
 const TEST_COOKIE = "afif_cookie_probe";
 
-type CookieProbe =
-  | { state: "running" }
-  | { state: "pass"; detail: string }
-  | { state: "fail"; detail: string };
+/** The attribute set the real session cookie uses, so the probe tests the same thing. */
+const PROBE_ATTRS = "path=/; SameSite=None; Secure; Max-Age=60";
+
+export type EnvironmentReport = {
+  origin: string;
+  href: string;
+  framed: boolean;
+  framedDetail: string;
+  referrer: string;
+  secureContext: boolean;
+  cookieWriteOk: boolean;
+  cookieDetail: string;
+  hasStorageAccess: boolean | "unsupported";
+  storageAccessSupported: boolean;
+};
 
 /**
  * Can this document store a cookie at all?
  *
- * This is the question every previous round of debugging could not answer. The
- * session cookie is HttpOnly, so it is invisible to script and cannot be
- * inspected. But a separate, deliberately NON-HttpOnly probe cookie can be: if
- * the browser refuses to store that one, it is refusing cookies in this
- * browsing context entirely — which is exactly what third-party cookie blocking
- * does to an app inside a cross-site iframe, and no amount of SameSite, Secure
- * or Partitioned tuning on the server can override it.
+ * The session cookie is HttpOnly and therefore invisible to script, so it
+ * cannot be inspected directly. A deliberately non-HttpOnly probe cookie can
+ * be, and it is written with the SAME attributes the session cookie uses. If
+ * the browser refuses this one, it is refusing cookies in this browsing
+ * context entirely — which no server-side SameSite / Secure / Partitioned
+ * setting can override.
  *
  * The probe carries no data and is deleted immediately.
  */
-function probeCookieStorage(): CookieProbe {
-  const attrs = "path=/; SameSite=None; Secure; Max-Age=60";
+function probeCookieWrite(): { ok: boolean; detail: string } {
   try {
-    document.cookie = `${TEST_COOKIE}=1; ${attrs}`;
+    document.cookie = `${TEST_COOKIE}=1; ${PROBE_ATTRS}`;
     const stored = document.cookie
       .split(";")
       .some((pair) => pair.trim().startsWith(`${TEST_COOKIE}=`));
-
-    // Clean up regardless of the outcome.
     document.cookie = `${TEST_COOKIE}=; path=/; Max-Age=0`;
 
-    if (stored) {
-      return { state: "pass", detail: "browser stored a SameSite=None; Secure cookie" };
-    }
-    return {
-      state: "fail",
-      detail:
-        "browser REFUSED to store a SameSite=None; Secure cookie — cookies are blocked in this context",
-    };
+    return stored
+      ? { ok: true, detail: `stored and read back with [${PROBE_ATTRS}]` }
+      : {
+          ok: false,
+          detail: `browser REFUSED a cookie with [${PROBE_ATTRS}] — cookie storage is blocked in this context`,
+        };
   } catch (error) {
-    return { state: "fail", detail: `cookie access threw: ${String(error)}` };
+    return { ok: false, detail: `cookie access threw: ${String(error)}` };
   }
 }
 
-export function CookieDiagnostics() {
-  const [probe, setProbe] = React.useState<CookieProbe>({ state: "running" });
-  const [framed, setFramed] = React.useState<string>("checking…");
+export function inspectEnvironment(): EnvironmentReport {
+  // Reading window.top throws when the frame is cross-origin; the throw is
+  // itself the answer.
+  let framed = false;
+  let framedDetail = "top-level (not framed)";
+  try {
+    framed = window.self !== window.top;
+    if (framed) {
+      // Only readable when same-origin; a throw means cross-origin embedding.
+      void window.top?.location.href;
+      framedDetail = "iframe, same-origin as parent";
+    }
+  } catch {
+    framed = true;
+    framedDetail = "iframe, CROSS-ORIGIN parent (cookies are third-party here)";
+  }
+
+  const write = probeCookieWrite();
+
+  // The Storage Access API is the sanctioned way for an embedded page to ask
+  // the user for its own cookies back.
+  const storageAccessSupported = typeof document.hasStorageAccess === "function";
+  let hasStorageAccess: boolean | "unsupported" = "unsupported";
+  if (storageAccessSupported) {
+    // Synchronous best-effort read; the authoritative check is awaited by the
+    // caller before a login attempt.
+    hasStorageAccess = false;
+  }
+
+  return {
+    origin: window.location.origin,
+    href: window.location.href,
+    framed,
+    framedDetail,
+    referrer: document.referrer || "(none)",
+    secureContext: window.isSecureContext,
+    cookieWriteOk: write.ok,
+    cookieDetail: write.detail,
+    hasStorageAccess,
+    storageAccessSupported,
+  };
+}
+
+export function CookieDiagnostics({
+  trace,
+}: {
+  trace?: { stage: string; detail: string; ok: boolean | null }[];
+}) {
+  const [env, setEnv] = React.useState<EnvironmentReport | null>(null);
+  const [access, setAccess] = React.useState<boolean | "unsupported" | "checking">("checking");
 
   React.useEffect(() => {
-    // Reading window.top throws when the frame is cross-origin, which is itself
-    // the answer: the app is embedded under a different site.
-    let embedded: string;
-    try {
-      embedded = window.self === window.top ? "no (top-level tab)" : "yes (cross-origin iframe)";
-    } catch {
-      embedded = "yes (cross-origin iframe)";
+    const report = inspectEnvironment();
+    setEnv(report);
+
+    if (typeof document.hasStorageAccess === "function") {
+      document
+        .hasStorageAccess()
+        .then((granted) => setAccess(granted))
+        .catch(() => setAccess("unsupported"));
+    } else {
+      setAccess("unsupported");
     }
-    setFramed(embedded);
-    setProbe(probeCookieStorage());
   }, []);
 
-  const colour =
-    probe.state === "pass"
+  // Rendered unconditionally: the build stamp has to be present in the server
+  // HTML, otherwise a stale build looks identical to a current one.
+  const cookieColour = !env
+    ? "text-muted-foreground"
+    : env.cookieWriteOk
       ? "text-emerald-600"
-      : probe.state === "fail"
-        ? "text-red-600"
-        : "text-muted-foreground";
+      : "text-red-600";
 
   return (
     <div
@@ -88,10 +142,31 @@ export function CookieDiagnostics() {
         Sign-in diagnostics (temporary — please report these lines)
       </div>
       <div>build: {BUILD_STAMP}</div>
-      <div>framed: {framed}</div>
-      <div className={colour}>
-        cookies: {probe.state === "running" ? "testing…" : `${probe.state.toUpperCase()} — ${probe.detail}`}
+      <div>origin: {env ? env.origin : "checking…"}</div>
+      <div>secureContext: {env ? String(env.secureContext) : "checking…"}</div>
+      <div>framed: {env ? env.framedDetail : "checking…"}</div>
+      <div className="break-all">referrer: {env ? env.referrer : "checking…"}</div>
+      <div>
+        storageAccess: {access === "checking" ? "checking…" : String(access)}
+        {env && !env.storageAccessSupported ? " (API unsupported)" : ""}
       </div>
+      <div className={`break-words ${cookieColour}`}>
+        cookieWrite:{" "}
+        {!env ? "checking…" : `${env.cookieWriteOk ? "PASS" : "FAIL"} — ${env.cookieDetail}`}
+      </div>
+
+      {trace && trace.length > 0 ? (
+        <div className="mt-1.5 border-t border-border pt-1.5">
+          <div className="mb-0.5 font-sans text-[11px] font-semibold text-foreground">
+            Login trace
+          </div>
+          {trace.map((step) => (
+            <div key={step.stage} className="break-words">
+              {step.ok === null ? "…" : step.ok ? "PASS" : "FAIL"} {step.stage} — {step.detail}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
