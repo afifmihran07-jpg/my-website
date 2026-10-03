@@ -17,6 +17,22 @@ export function proxy(request: NextRequest) {
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
 
+  /* TEMPORARY DIAGNOSTICS — cookie NAMES only, never values or secrets.
+     Remove once the login loop is resolved. */
+  const h = request.headers;
+  console.log(
+    [
+      "PROXY",
+      `${request.method} ${pathname}${search}`,
+      `session=${hasSession ? "yes" : "NO"}`,
+      `cookies=[${request.cookies.getAll().map((c) => c.name).join(",")}]`,
+      `xfp=${h.get("x-forwarded-proto")}`,
+      `sfs=${h.get("sec-fetch-site")}`,
+      `sfd=${h.get("sec-fetch-dest")}`,
+      `origin=${h.get("origin")}`,
+    ].join(" | "),
+  );
+
   if (isPublic) {
     // Signed-in users should not sit on the login screen.
     if (hasSession && (pathname === "/login" || pathname === "/setup")) {
@@ -26,6 +42,7 @@ export function proxy(request: NextRequest) {
   }
 
   if (!hasSession) {
+    console.log(`PROXY DECISION: ${pathname} -> redirect /login (no session cookie)`);
     const url = new URL("/login", request.url);
     url.searchParams.set("reason", "auth_required");
     url.searchParams.set("next", `${pathname}${search}`);

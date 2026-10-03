@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import { loginAction } from "@/server/auth/actions";
 import { Alert, Button, Field, Input } from "@/components/ui/primitives";
+// TEMPORARY DIAGNOSTIC — remove with src/components/auth/CookieDiagnostics.tsx
+import { CookieDiagnostics } from "./CookieDiagnostics";
 
 /**
  * Does the browser hold a working session cookie right now?
@@ -209,6 +211,9 @@ export function LoginForm({
         />
         Remember me for 30 days
       </label>
+
+      {/* TEMPORARY DIAGNOSTIC — remove with CookieDiagnostics.tsx */}
+      <CookieDiagnostics />
 
       <Button type="submit" full loading={pending} disabled={pending}>
         {!pending ? <LogIn className="h-4 w-4" /> : null}
