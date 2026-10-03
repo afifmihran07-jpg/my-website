@@ -114,7 +114,7 @@ describe("resolveCookieAttributes — never emits an invalid combination", () =>
       forwardedProto: "https",
       secureOverride: null,
     });
-    expect(attrs).toEqual({ secure: true, sameSite: "none" });
+    expect(attrs).toEqual({ secure: true, sameSite: "none", partitioned: true });
   });
 
   it("falls back to lax rather than emit SameSite=None without Secure", () => {
@@ -125,7 +125,7 @@ describe("resolveCookieAttributes — never emits an invalid combination", () =>
       forwardedProto: "http",
       secureOverride: "false",
     });
-    expect(attrs).toEqual({ secure: false, sameSite: "lax" });
+    expect(attrs).toEqual({ secure: false, sameSite: "lax", partitioned: false });
   });
 
   it("never returns none without secure for any input combination", () => {
@@ -190,7 +190,7 @@ describe("hosted preview: x-forwarded-proto=http with Sec-Fetch-* stripped", () 
 
   it("keeps SameSite=None when it was explicitly requested, promoting Secure", () => {
     const attrs = resolveCookieAttributes({ ...realPreview, sameSiteOverride: "none" });
-    expect(attrs).toEqual({ secure: true, sameSite: "none" });
+    expect(attrs).toEqual({ secure: true, sameSite: "none", partitioned: true });
   });
 
   it("still honours an explicit Secure=false, falling back to Lax", () => {
@@ -201,13 +201,13 @@ describe("hosted preview: x-forwarded-proto=http with Sec-Fetch-* stripped", () 
       sameSiteOverride: "none",
       secureOverride: "false",
     });
-    expect(attrs).toEqual({ secure: false, sameSite: "lax" });
+    expect(attrs).toEqual({ secure: false, sameSite: "lax", partitioned: false });
   });
 
   it("leaves the auto-detected path on Lax over plain http", () => {
     // No override: nothing says this is a cross-site frame, so do not upgrade.
     const attrs = resolveCookieAttributes({ ...realPreview, sameSiteOverride: null });
-    expect(attrs).toEqual({ secure: false, sameSite: "lax" });
+    expect(attrs).toEqual({ secure: false, sameSite: "lax", partitioned: false });
   });
 });
 
@@ -231,7 +231,11 @@ describe("captured preview navigation headers, no env override", () => {
   };
 
   it("resolves to SameSite=None with Secure, not Lax", () => {
-    expect(resolveCookieAttributes(captured)).toEqual({ secure: true, sameSite: "none" });
+    expect(resolveCookieAttributes(captured)).toEqual({
+      secure: true,
+      sameSite: "none",
+      partitioned: true,
+    });
   });
 
   it("stays on Lax when there is no evidence of an embedded context", () => {
@@ -242,6 +246,56 @@ describe("captured preview navigation headers, no env override", () => {
       secFetchSite: "none",
       secFetchDest: "document",
     });
-    expect(attrs).toEqual({ secure: false, sameSite: "lax" });
+    expect(attrs).toEqual({ secure: false, sameSite: "lax", partitioned: false });
+  });
+});
+
+/**
+ * CHIPS / Partitioned coverage.
+ *
+ * The session cookie inside the hosted preview is a THIRD-PARTY cookie: the app
+ * is framed by another origin. Once a browser blocks third-party cookies,
+ * `SameSite=None; Secure` is not sufficient — the cookie is refused outright,
+ * which presents as a login that succeeds and then bounces straight back to
+ * /login. `Partitioned` scopes the cookie to the embedding top-level site,
+ * which is the mechanism designed for exactly this.
+ */
+describe("partitioned (CHIPS) cookies for embedded contexts", () => {
+  const embedded = {
+    forwardedProto: "http",
+    secFetchSite: "cross-site",
+    secFetchDest: "iframe",
+    secureOverride: null,
+    sameSiteOverride: null,
+    nodeEnv: "development",
+  };
+
+  it("is set whenever the cookie has to be SameSite=None", () => {
+    expect(resolveCookieAttributes(embedded).partitioned).toBe(true);
+  });
+
+  it("is never set on a Lax cookie", () => {
+    // Partitioned requires SameSite=None; a top-level Lax cookie must not carry
+    // it or browsers reject the attribute combination.
+    const attrs = resolveCookieAttributes({
+      ...embedded,
+      secFetchSite: "none",
+      secFetchDest: "document",
+    });
+    expect(attrs).toEqual({ secure: false, sameSite: "lax", partitioned: false });
+  });
+
+  it("can be disabled explicitly", () => {
+    const attrs = resolveCookieAttributes({ ...embedded, partitionedOverride: "false" });
+    expect(attrs).toEqual({ secure: true, sameSite: "none", partitioned: false });
+  });
+
+  it("is not set when SameSite=None was downgraded to Lax", () => {
+    const attrs = resolveCookieAttributes({
+      ...embedded,
+      sameSiteOverride: "none",
+      secureOverride: "false",
+    });
+    expect(attrs.partitioned).toBe(false);
   });
 });

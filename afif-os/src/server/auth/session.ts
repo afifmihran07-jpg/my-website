@@ -34,7 +34,20 @@ export function ttlSeconds(remember: boolean): number {
  * Pure decision function behind {@link cookieIsSecure}, split out so the
  * behaviour can be tested without a live request.
  */
-export type CookieAttributes = { secure: boolean; sameSite: "lax" | "none" };
+export type CookieAttributes = {
+  secure: boolean;
+  sameSite: "lax" | "none";
+  /**
+   * CHIPS (Cookies Having Independent Partitioned State).
+   *
+   * A cookie set inside a cross-site iframe is a THIRD-PARTY cookie, and
+   * browsers block those outright once third-party cookie blocking is on --
+   * `SameSite=None; Secure` alone is not enough. `Partitioned` scopes the
+   * cookie to the embedding top-level site instead, which is precisely the
+   * mechanism designed to let an embedded app keep a session.
+   */
+  partitioned: boolean;
+};
 
 /**
  * Resolve the session cookie's transport attributes for the connection and
@@ -62,6 +75,7 @@ export function resolveCookieAttributes(input: {
   forwardedProto?: string | null;
   secFetchSite?: string | null;
   secFetchDest?: string | null;
+  partitionedOverride?: string | null;
   nodeEnv?: string | null;
 }): CookieAttributes {
   const proto = input.forwardedProto?.split(",")[0]?.trim() ?? null;
@@ -106,10 +120,17 @@ export function resolveCookieAttributes(input: {
   // Reachable only when Secure was explicitly forced off: browsers would drop
   // None outright, which is worse than Lax, so Lax is the survivable answer.
   if (sameSite === "none" && !secure) {
-    return { secure: false, sameSite: "lax" };
+    return { secure: false, sameSite: "lax", partitioned: false };
   }
 
-  return { secure, sameSite };
+  // Partitioned requires Secure and only makes sense alongside SameSite=None.
+  // Opt out explicitly with COOKIE_PARTITIONED="false"; default is on whenever
+  // the cookie is already cross-site, since that is exactly the case that needs
+  // it and it is ignored harmlessly by browsers that predate CHIPS.
+  const partitioned =
+    sameSite === "none" && secure && input.partitionedOverride !== "false";
+
+  return { secure, sameSite, partitioned };
 }
 
 /** Retained for callers/tests that only care about the Secure attribute. */
@@ -140,6 +161,7 @@ async function cookieAttributes(): Promise<CookieAttributes> {
   return resolveCookieAttributes({
     secureOverride: process.env.COOKIE_SECURE,
     sameSiteOverride: process.env.COOKIE_SAMESITE,
+    partitionedOverride: process.env.COOKIE_PARTITIONED,
     forwardedProto: forwarded,
     secFetchSite: site,
     secFetchDest: dest,
@@ -148,12 +170,14 @@ async function cookieAttributes(): Promise<CookieAttributes> {
 }
 
 async function cookieOptions(maxAgeSeconds: number) {
-  const { secure, sameSite } = await cookieAttributes();
+  const { secure, sameSite, partitioned } = await cookieAttributes();
   return {
     httpOnly: true,
     sameSite,
     secure,
+    // Required by CHIPS: a partitioned cookie must be host-scoped to "/".
     path: "/",
+    partitioned,
     maxAge: maxAgeSeconds,
   };
 }
@@ -244,7 +268,20 @@ export async function destroyCurrentSession(): Promise<void> {
       .set({ revokedAt: new Date() })
       .where(and(eq(sessions.tokenHash, hashToken(token)), isNull(sessions.revokedAt)));
   }
-  jar.delete(env().SESSION_COOKIE);
+  // Clearing a cookie only works if the attributes MATCH the ones it was set
+  // with — the browser identifies the cookie by (name, domain, path) plus, for
+  // a partitioned cookie, the partition itself. A bare `jar.delete(name)` emits
+  // no Secure/SameSite/Partitioned, so the partitioned session cookie would not
+  // be matched and would survive logout. Reuse the same attribute resolver the
+  // setter uses so the two always agree.
+  const { secure, sameSite, partitioned } = await cookieAttributes();
+  jar.delete({
+    name: env().SESSION_COOKIE,
+    path: "/",
+    secure,
+    sameSite,
+    partitioned,
+  });
 }
 
 export async function revokeAllSessions(userId: string): Promise<void> {

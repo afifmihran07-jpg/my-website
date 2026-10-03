@@ -142,7 +142,7 @@ describe("session cookie reaches the server in every deployment context", () => 
       secFetchSite: "same-origin",
       secFetchDest: "document",
     });
-    expect(attrs).toEqual({ secure: false, sameSite: "lax" });
+    expect(attrs).toEqual({ secure: false, sameSite: "lax", partitioned: false });
   });
 
   it("hosted preview (cross-site iframe over https): SameSite=None + Secure", () => {
@@ -153,7 +153,7 @@ describe("session cookie reaches the server in every deployment context", () => 
       secFetchDest: "iframe",
     });
     // Lax here would be the redirect-loop bug: stored, then never sent.
-    expect(attrs).toEqual({ secure: true, sameSite: "none" });
+    expect(attrs).toEqual({ secure: true, sameSite: "none", partitioned: true });
   });
 
   it("production behind https, opened directly: Secure + Lax", () => {
@@ -164,7 +164,7 @@ describe("session cookie reaches the server in every deployment context", () => 
       secFetchSite: "none",
       secFetchDest: "document",
     });
-    expect(attrs).toEqual({ secure: true, sameSite: "lax" });
+    expect(attrs).toEqual({ secure: true, sameSite: "lax", partitioned: false });
   });
 
   it("never produces a combination a browser would discard", () => {
