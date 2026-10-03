@@ -6,6 +6,27 @@ import { Eye, EyeOff, LogIn } from "lucide-react";
 import { loginAction } from "@/server/auth/actions";
 import { Alert, Button, Field, Input } from "@/components/ui/primitives";
 
+/**
+ * Does the browser hold a working session cookie right now?
+ *
+ * `document.cookie` cannot answer this: the session cookie is HttpOnly and so
+ * invisible to script by design. Instead ask an endpoint that is genuinely
+ * authenticated — it returns 200 only when a valid session cookie arrives.
+ * Any failure is treated as "not working", since that is the state we need to
+ * report and a network error would block the dashboard anyway.
+ */
+async function sessionCookieWorks(): Promise<boolean> {
+  try {
+    const response = await fetch("/api/study/active", {
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 const REASON_MESSAGES: Record<string, string> = {
   auth_required: "Your session expired or you are not signed in.",
   logged_out: "You have been signed out.",
@@ -28,12 +49,16 @@ export function LoginForm({
   const [error, setError] = React.useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string[]>>({});
   const [pending, setPending] = React.useState(false);
+  // Set when the server accepted the credentials but the browser did not keep
+  // the session cookie. Distinct from a wrong password: retrying cannot help.
+  const [cookieBlocked, setCookieBlocked] = React.useState(false);
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setPending(true);
     setError(null);
     setFieldErrors({});
+    setCookieBlocked(false);
 
     // Hard ceiling on the pending state. A successful login navigates away and
     // unmounts this form; if that navigation never settles the button would
@@ -51,6 +76,24 @@ export function LoginForm({
       if (result.ok) {
         const target = next && next.startsWith("/") ? next : result.data.redirectTo;
         window.clearTimeout(watchdog);
+
+        // Confirm the browser actually kept the session cookie before hopping.
+        //
+        // When this app is framed by another origin the session cookie is a
+        // third-party cookie, and a browser that blocks those will accept the
+        // Set-Cookie and then store nothing. Navigating anyway lands on
+        // /dashboard with no session, which immediately redirects back here --
+        // an endless "Signing in…" -> blank -> login loop with no explanation.
+        //
+        // So probe an authenticated endpoint first. On success this costs one
+        // fast request; on failure it turns a silent loop into a message that
+        // says what is wrong and what to do about it.
+        if (!(await sessionCookieWorks())) {
+          setCookieBlocked(true);
+          setPending(false);
+          return;
+        }
+
         // Full-document navigation, not a client-side route change.
         //
         // This deliberately bypasses the App Router for the post-login hop.
@@ -100,6 +143,27 @@ export function LoginForm({
       ) : null}
 
       {error ? <Alert variant="error">{error}</Alert> : null}
+
+      {cookieBlocked ? (
+        <Alert variant="warning" title="Your browser blocked the session cookie">
+          The password was correct and the server signed you in, but this browser
+          refused to keep the session cookie — so every page would bounce straight
+          back here.
+          <span className="mt-1.5 block">
+            This happens when the app is displayed inside a frame on another
+            website and your browser blocks third-party cookies. Opening it
+            directly in its own tab makes the cookie first-party, which works.
+          </span>
+          <Button
+            type="button"
+            variant="secondary"
+            className="mt-2"
+            onClick={() => window.open(window.location.href, "_blank", "noopener")}
+          >
+            Open in a new tab
+          </Button>
+        </Alert>
+      ) : null}
 
       <Field label="Email or username" error={fieldErrors.identifier} required>
         <Input
